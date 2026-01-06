@@ -1,11 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Mic, MicOff, Phone, PhoneOff } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, Zap, Key, Users, Droplet, Grid3X3, Plus, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type OrbState = "idle" | "listening" | "processing" | "speaking";
 
 interface VoiceInterfaceProps {
   sessionId: string;
+}
+
+interface AgentTask {
+  id: number;
+  name: string;
+  status: "in_progress" | "completed" | "consent_required";
 }
 
 const VoiceInterface = ({ sessionId }: VoiceInterfaceProps) => {
@@ -20,6 +26,19 @@ const VoiceInterface = ({ sessionId }: VoiceInterfaceProps) => {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  const [tasks] = useState<AgentTask[]>([
+    { id: 1, name: "Answer customer inquiries", status: "in_progress" },
+    { id: 2, name: "Provide product recommendations", status: "completed" },
+    { id: 3, name: "Assist with order processing", status: "completed" },
+    { id: 4, name: "Handle customer complaints", status: "consent_required" },
+  ]);
+
+  const [stats] = useState({
+    responseAccuracy: 99,
+    customerSatisfaction: 96,
+    taskCompletionRate: 91,
+  });
+
   const connectWebSocket = useCallback(() => {
     const ws = new WebSocket(`ws://localhost:8080/ws/voice/realtime/${sessionId}`);
     wsRef.current = ws;
@@ -32,7 +51,6 @@ const VoiceInterface = ({ sessionId }: VoiceInterfaceProps) => {
 
     ws.onmessage = async (event) => {
       if (event.data instanceof Blob) {
-        // Audio data - play it
         playAudio(event.data);
       } else {
         const data = JSON.parse(event.data);
@@ -172,16 +190,29 @@ const VoiceInterface = ({ sessionId }: VoiceInterfaceProps) => {
     };
   }, []);
 
-  const getOrbAnimation = () => {
-    switch (orbState) {
-      case "listening":
-        return "animate-orb-listening";
-      case "processing":
-        return "animate-orb-pulse";
-      case "speaking":
-        return "animate-orb-speaking";
-      default:
-        return "";
+  const getStatusBadge = (status: AgentTask["status"]) => {
+    switch (status) {
+      case "in_progress":
+        return (
+          <span className="flex items-center gap-1.5 text-xs text-primary">
+            <Clock className="w-3 h-3" />
+            In progress
+          </span>
+        );
+      case "completed":
+        return (
+          <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+            <CheckCircle className="w-3 h-3" />
+            Completed
+          </span>
+        );
+      case "consent_required":
+        return (
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <AlertCircle className="w-3 h-3" />
+            Consent required
+          </span>
+        );
     }
   };
 
@@ -199,98 +230,199 @@ const VoiceInterface = ({ sessionId }: VoiceInterfaceProps) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-6">
-      {/* Main Orb */}
-      <div className="relative mb-12">
-        {/* Outer ripples */}
-        {isConnected && (
-          <>
-            <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" />
-            <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" style={{ animationDelay: "-0.5s" }} />
-            <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" style={{ animationDelay: "-1s" }} />
-          </>
+    <div className="flex items-center justify-center h-full p-6 gap-6">
+      {/* Left Panel - Agent Tasks */}
+      <div className="hidden lg:flex flex-col w-80 h-[480px] rounded-2xl glass-strong p-6 animate-fade-in">
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-foreground mb-1">Agent Tasks</h2>
+          <p className="text-xs text-muted-foreground">Overview of all the tasks the agent is currently running</p>
+        </div>
+
+        <div className="flex-1 space-y-4">
+          {tasks.map((task) => (
+            <div
+              key={task.id}
+              className="flex items-center justify-between py-3 border-b border-border/30 last:border-0"
+            >
+              <span className="text-sm text-foreground/90">{task.name}</span>
+              {getStatusBadge(task.status)}
+            </div>
+          ))}
+        </div>
+
+        {/* Transcript Display */}
+        {transcript && (
+          <div className="mt-4 p-3 rounded-xl bg-secondary/50 border border-border/30">
+            <p className="text-xs text-muted-foreground mb-1">You said:</p>
+            <p className="text-sm text-foreground">{transcript}</p>
+          </div>
         )}
+      </div>
 
-        {/* Orb container */}
-        <div
-          className={`relative w-64 h-64 md:w-80 md:h-80 rounded-full cursor-pointer transition-all duration-500 ${getOrbAnimation()}`}
-          onClick={isConnected ? undefined : startVoice}
-          style={{
-            background: isConnected
-              ? "radial-gradient(circle at 30% 30%, hsl(183 100% 70%) 0%, hsl(183 100% 50%) 30%, hsl(200 100% 40%) 70%, hsl(222 47% 15%) 100%)"
-              : "radial-gradient(circle at 30% 30%, hsl(183 100% 40%) 0%, hsl(183 100% 30%) 30%, hsl(200 100% 25%) 70%, hsl(222 47% 12%) 100%)",
-            boxShadow: isConnected
-              ? "0 0 80px hsl(183 100% 50% / 0.5), 0 0 160px hsl(183 100% 50% / 0.25), inset 0 0 60px hsl(183 100% 70% / 0.3)"
-              : "0 0 40px hsl(183 100% 50% / 0.2), inset 0 0 30px hsl(183 100% 50% / 0.1)",
-          }}
-        >
-          {/* Inner glow */}
-          <div className="absolute inset-8 rounded-full bg-primary/20 blur-xl" />
-          
-          {/* Highlight */}
-          <div 
-            className="absolute top-8 left-8 w-16 h-16 rounded-full opacity-60"
-            style={{
-              background: "radial-gradient(circle, hsl(0 0% 100% / 0.4) 0%, transparent 70%)",
-            }}
-          />
+      {/* Center - Animated Orb */}
+      <div className="flex flex-col items-center justify-center">
+        <div className="relative mb-8">
+          {/* Orb Container with rounded corners */}
+          <div className="relative w-72 h-72 md:w-80 md:h-80 rounded-[2.5rem] overflow-hidden bg-secondary/30 backdrop-blur-sm border border-border/20">
+            {/* Animated Gradient Orb */}
+            <div
+              className={`absolute inset-4 rounded-[2rem] cursor-pointer transition-all duration-700 ${
+                isConnected ? "orb-active" : ""
+              }`}
+              onClick={isConnected ? undefined : startVoice}
+              style={{
+                background: isConnected
+                  ? `
+                    radial-gradient(ellipse 80% 50% at 50% 100%, hsl(350 85% 55%) 0%, transparent 50%),
+                    radial-gradient(ellipse 60% 40% at 30% 80%, hsl(280 90% 60%) 0%, transparent 40%),
+                    radial-gradient(ellipse 70% 50% at 70% 70%, hsl(200 100% 60%) 0%, transparent 45%),
+                    radial-gradient(ellipse 50% 30% at 50% 50%, hsl(30 100% 60%) 0%, transparent 40%),
+                    radial-gradient(ellipse 80% 60% at 50% 30%, hsl(190 100% 50%) 0%, transparent 50%),
+                    linear-gradient(180deg, hsl(222 47% 12%) 0%, hsl(222 47% 8%) 100%)
+                  `
+                  : `
+                    radial-gradient(ellipse 60% 40% at 50% 70%, hsl(200 80% 40%) 0%, transparent 50%),
+                    radial-gradient(ellipse 50% 30% at 40% 60%, hsl(280 60% 35%) 0%, transparent 40%),
+                    linear-gradient(180deg, hsl(222 47% 12%) 0%, hsl(222 47% 8%) 100%)
+                  `,
+                boxShadow: isConnected
+                  ? `
+                    0 20px 60px hsl(350 85% 45% / 0.3),
+                    0 10px 40px hsl(200 100% 50% / 0.2),
+                    inset 0 -20px 40px hsl(350 85% 50% / 0.2),
+                    inset 0 20px 40px hsl(200 100% 60% / 0.15)
+                  `
+                  : `
+                    0 10px 30px hsl(200 80% 30% / 0.2),
+                    inset 0 -10px 20px hsl(280 60% 30% / 0.1)
+                  `,
+              }}
+            >
+              {/* Wave lines overlay */}
+              <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 100 100" preserveAspectRatio="none">
+                {[...Array(12)].map((_, i) => (
+                  <path
+                    key={i}
+                    d={`M 0 ${50 + i * 3} Q 25 ${45 + i * 3 + Math.sin(i) * 5} 50 ${50 + i * 3} T 100 ${50 + i * 3}`}
+                    fill="none"
+                    stroke="hsl(200 100% 70% / 0.3)"
+                    strokeWidth="0.3"
+                    className={isConnected ? "animate-wave" : ""}
+                    style={{ animationDelay: `${i * 0.1}s` }}
+                  />
+                ))}
+              </svg>
 
-          {/* Status indicator */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            {!isConnected && (
-              <Mic className="w-16 h-16 text-primary-foreground/80" />
-            )}
+              {/* Inner glow effect */}
+              <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-t from-transparent via-transparent to-primary/10" />
+
+              {/* Center icon when not connected */}
+              {!isConnected && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Mic className="w-12 h-12 text-foreground/40" />
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Status */}
-      <div className="text-center mb-8">
-        <p className="text-lg font-medium text-foreground mb-2">{getStatusText()}</p>
-        {orbState === "listening" && isMuted && (
-          <p className="text-sm text-destructive">Microphone muted</p>
-        )}
-      </div>
+        {/* Status Text */}
+        <p className="text-sm font-medium text-muted-foreground mb-6">{getStatusText()}</p>
 
-      {/* Transcript & Response */}
-      {(transcript || response) && (
-        <div className="w-full max-w-lg space-y-4 mb-8">
-          {transcript && (
-            <div className="p-4 rounded-xl glass">
-              <p className="text-xs text-muted-foreground mb-1">You said:</p>
-              <p className="text-sm">{transcript}</p>
-            </div>
+        {/* Controls */}
+        <div className="flex items-center gap-4">
+          {isConnected && (
+            <Button
+              variant={isMuted ? "destructive" : "glass"}
+              size="lg"
+              onClick={toggleMute}
+              className="rounded-full w-12 h-12"
+            >
+              {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </Button>
           )}
-          {response && (
-            <div className="p-4 rounded-xl bg-primary/10 border border-primary/20">
-              <p className="text-xs text-primary mb-1">Assistant:</p>
-              <p className="text-sm">{response}</p>
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* Controls */}
-      <div className="flex items-center gap-4">
-        {isConnected && (
           <Button
-            variant={isMuted ? "destructive" : "glass"}
+            variant={isConnected ? "destructive" : "glow"}
             size="lg"
-            onClick={toggleMute}
+            onClick={isConnected ? stopVoice : startVoice}
             className="rounded-full w-14 h-14"
           >
-            {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+            {isConnected ? <PhoneOff className="w-6 h-6" /> : <Phone className="w-6 h-6" />}
           </Button>
-        )}
+        </div>
+      </div>
 
-        <Button
-          variant={isConnected ? "destructive" : "glow"}
-          size="lg"
-          onClick={isConnected ? stopVoice : startVoice}
-          className="rounded-full w-16 h-16"
-        >
-          {isConnected ? <PhoneOff className="w-7 h-7" /> : <Phone className="w-7 h-7" />}
-        </Button>
+      {/* Right Panel - Voice AI Agent */}
+      <div className="hidden lg:flex flex-col w-72 h-[480px] rounded-2xl glass-strong p-6 animate-fade-in" style={{ animationDelay: "0.1s" }}>
+        {/* Agent Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary via-accent to-primary flex items-center justify-center">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent" />
+          </div>
+          <h2 className="text-lg font-semibold text-foreground">Voice AI Agent</h2>
+        </div>
+
+        {/* Agent Tools */}
+        <div className="mb-6">
+          <p className="text-xs text-muted-foreground mb-3">Agent Tools</p>
+          <div className="flex items-center gap-2">
+            {[Zap, Key, Users, Droplet, Grid3X3, Plus].map((Icon, i) => (
+              <div
+                key={i}
+                className="w-8 h-8 rounded-lg bg-secondary/60 flex items-center justify-center border border-border/30 hover:border-primary/50 transition-colors cursor-pointer"
+              >
+                <Icon className="w-4 h-4 text-muted-foreground" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Key Statistics */}
+        <div className="flex-1">
+          <p className="text-xs text-muted-foreground mb-4">Key Statistics</p>
+
+          {/* Response Accuracy */}
+          <div className="p-4 rounded-xl bg-secondary/40 border border-border/30 mb-4">
+            <p className="text-xs text-muted-foreground mb-2">Response Accuracy</p>
+            <div className="flex items-end justify-between">
+              <div>
+                <span className="text-3xl font-bold text-foreground">{stats.responseAccuracy}%</span>
+                <span className="text-xs text-emerald-400 ml-2">↑ 5%</span>
+              </div>
+              {/* Mini chart */}
+              <div className="flex items-end gap-0.5 h-10">
+                {[40, 55, 45, 60, 70, 65, 80, 75, 90, 85, 95, 99].map((h, i) => (
+                  <div
+                    key={i}
+                    className="w-1.5 bg-gradient-to-t from-rose-500 to-rose-400 rounded-t"
+                    style={{ height: `${h}%` }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Other Stats */}
+          <div className="grid grid-cols-1 gap-3">
+            <div className="p-3 rounded-xl bg-secondary/40 border border-border/30">
+              <p className="text-xs text-muted-foreground mb-1">Customer Satisfaction</p>
+              <span className="text-xl font-bold text-foreground">{stats.customerSatisfaction}%</span>
+            </div>
+            <div className="p-3 rounded-xl bg-secondary/40 border border-border/30">
+              <p className="text-xs text-muted-foreground mb-1">Task Completion Rate</p>
+              <span className="text-xl font-bold text-foreground">{stats.taskCompletionRate}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Response Display */}
+        {response && (
+          <div className="mt-4 p-3 rounded-xl bg-primary/10 border border-primary/20">
+            <p className="text-xs text-primary mb-1">Assistant:</p>
+            <p className="text-sm text-foreground line-clamp-3">{response}</p>
+          </div>
+        )}
       </div>
     </div>
   );
