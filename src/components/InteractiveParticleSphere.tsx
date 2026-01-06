@@ -7,79 +7,115 @@ interface SphereProps {
   isPressed: boolean;
 }
 
-// Main glowing sphere body
-const GlowingSphere = ({ mousePosition, isPressed }: SphereProps) => {
+// Iridescent gradient sphere using custom shader
+const GradientSphere = ({ mousePosition, isPressed }: SphereProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
   const targetRotation = useRef({ x: 0, y: 0 });
   const currentScale = useRef(1);
 
-  useFrame(() => {
-    if (!meshRef.current) return;
+  const shaderMaterial = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        mouseX: { value: 0 },
+        mouseY: { value: 0 },
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        varying vec2 vUv;
+        
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vPosition = position;
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float time;
+        uniform float mouseX;
+        uniform float mouseY;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        varying vec2 vUv;
+        
+        void main() {
+          // Base gradient colors - teal to blue to pink
+          vec3 teal = vec3(0.0, 0.8, 0.7);
+          vec3 blue = vec3(0.2, 0.5, 1.0);
+          vec3 pink = vec3(0.9, 0.3, 0.5);
+          vec3 coral = vec3(1.0, 0.5, 0.4);
+          
+          // Create flowing gradient based on position and time
+          float angle = atan(vPosition.y, vPosition.x) + time * 0.3;
+          float dist = length(vPosition.xy);
+          
+          // Mix colors based on angle and position
+          float t1 = sin(angle * 2.0 + time * 0.5) * 0.5 + 0.5;
+          float t2 = cos(angle * 1.5 - time * 0.3 + vPosition.z) * 0.5 + 0.5;
+          float t3 = sin(vPosition.z * 2.0 + time * 0.4) * 0.5 + 0.5;
+          
+          // Mouse influence on colors
+          float mouseInfluence = mouseX * 0.3;
+          
+          vec3 color1 = mix(teal, blue, t1 + mouseInfluence);
+          vec3 color2 = mix(blue, pink, t2);
+          vec3 color3 = mix(pink, coral, t3);
+          
+          vec3 finalColor = mix(color1, color2, t2);
+          finalColor = mix(finalColor, color3, t3 * 0.5);
+          
+          // Add rim lighting effect
+          float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+          rim = pow(rim, 2.0);
+          finalColor += rim * vec3(0.3, 0.5, 0.8) * 0.5;
+          
+          // Add subtle shine
+          float shine = pow(max(0.0, dot(vNormal, normalize(vec3(0.5, 0.5, 1.0)))), 8.0);
+          finalColor += shine * vec3(1.0) * 0.3;
+          
+          gl_FragColor = vec4(finalColor, 0.95);
+        }
+      `,
+      transparent: true,
+    });
+  }, []);
+
+  useFrame((state) => {
+    if (!meshRef.current || !materialRef.current) return;
+
+    const time = state.clock.elapsedTime;
+    materialRef.current.uniforms.time.value = time;
+    materialRef.current.uniforms.mouseX.value = mousePosition.x;
+    materialRef.current.uniforms.mouseY.value = mousePosition.y;
 
     // Follow mouse smoothly
-    targetRotation.current.x = mousePosition.y * 0.3;
-    targetRotation.current.y = mousePosition.x * 0.5;
+    targetRotation.current.x = mousePosition.y * 0.25;
+    targetRotation.current.y = mousePosition.x * 0.4;
 
-    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.08;
-    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.08;
+    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.06;
+    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.06;
+
+    // Subtle continuous rotation
+    meshRef.current.rotation.y += 0.002;
 
     // Zoom on press
-    const targetScale = isPressed ? 1.12 : 1;
-    currentScale.current += (targetScale - currentScale.current) * 0.12;
+    const targetScale = isPressed ? 1.1 : 1;
+    currentScale.current += (targetScale - currentScale.current) * 0.1;
     meshRef.current.scale.setScalar(currentScale.current);
   });
 
   return (
     <mesh ref={meshRef}>
       <sphereGeometry args={[1.5, 64, 64]} />
-      <meshBasicMaterial
-        color="#0a1628"
-        transparent
-        opacity={0.95}
-      />
+      <primitive object={shaderMaterial} ref={materialRef} attach="material" />
     </mesh>
   );
 };
 
-// Inner core glow
-const InnerGlow = ({ mousePosition, isPressed }: SphereProps) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const targetRotation = useRef({ x: 0, y: 0 });
-  const currentScale = useRef(1);
-
-  useFrame((state) => {
-    if (!meshRef.current) return;
-
-    const time = state.clock.elapsedTime;
-
-    targetRotation.current.x = mousePosition.y * 0.3;
-    targetRotation.current.y = mousePosition.x * 0.5;
-
-    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.08;
-    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.08;
-
-    const targetScale = isPressed ? 1.12 : 1;
-    currentScale.current += (targetScale - currentScale.current) * 0.12;
-    
-    // Breathing effect
-    const breathe = 1 + Math.sin(time * 1.5) * 0.03;
-    meshRef.current.scale.setScalar(currentScale.current * breathe);
-  });
-
-  return (
-    <mesh ref={meshRef}>
-      <sphereGeometry args={[1.35, 64, 64]} />
-      <meshBasicMaterial
-        color="#1e3a5f"
-        transparent
-        opacity={0.6}
-        blending={THREE.AdditiveBlending}
-      />
-    </mesh>
-  );
-};
-
-// Eyes that follow the mouse
+// Rounded rectangular eyes
 const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
   const leftEyeRef = useRef<THREE.Group>(null);
   const rightEyeRef = useRef<THREE.Group>(null);
@@ -88,52 +124,65 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
   useFrame(() => {
     if (!leftEyeRef.current || !rightEyeRef.current) return;
 
-    // Eyes follow mouse by rotating the entire eye group
-    const eyeRotationX = mousePosition.y * 0.4;
-    const eyeRotationY = mousePosition.x * 0.6;
+    // Eyes follow mouse
+    const eyeRotationX = mousePosition.y * 0.25;
+    const eyeRotationY = mousePosition.x * 0.4;
 
     leftEyeRef.current.rotation.x = eyeRotationX;
-    leftEyeRef.current.rotation.y = eyeRotationY;
+    leftEyeRef.current.rotation.y = eyeRotationY + 0.002;
     rightEyeRef.current.rotation.x = eyeRotationX;
-    rightEyeRef.current.rotation.y = eyeRotationY;
+    rightEyeRef.current.rotation.y = eyeRotationY + 0.002;
 
     // Scale on press
-    const targetScale = isPressed ? 1.12 : 1;
-    currentScale.current += (targetScale - currentScale.current) * 0.12;
+    const targetScale = isPressed ? 1.1 : 1;
+    currentScale.current += (targetScale - currentScale.current) * 0.1;
     leftEyeRef.current.scale.setScalar(currentScale.current);
     rightEyeRef.current.scale.setScalar(currentScale.current);
   });
+
+  // Create rounded rectangle shape for eyes
+  const eyeShape = useMemo(() => {
+    const shape = new THREE.Shape();
+    const width = 0.12;
+    const height = 0.35;
+    const radius = 0.06;
+    
+    shape.moveTo(-width / 2 + radius, -height / 2);
+    shape.lineTo(width / 2 - radius, -height / 2);
+    shape.quadraticCurveTo(width / 2, -height / 2, width / 2, -height / 2 + radius);
+    shape.lineTo(width / 2, height / 2 - radius);
+    shape.quadraticCurveTo(width / 2, height / 2, width / 2 - radius, height / 2);
+    shape.lineTo(-width / 2 + radius, height / 2);
+    shape.quadraticCurveTo(-width / 2, height / 2, -width / 2, height / 2 - radius);
+    shape.lineTo(-width / 2, -height / 2 + radius);
+    shape.quadraticCurveTo(-width / 2, -height / 2, -width / 2 + radius, -height / 2);
+    
+    return shape;
+  }, []);
+
+  const extrudeSettings = useMemo(() => ({
+    depth: 0.05,
+    bevelEnabled: true,
+    bevelThickness: 0.02,
+    bevelSize: 0.02,
+    bevelSegments: 8,
+  }), []);
 
   return (
     <>
       {/* Left Eye */}
       <group ref={leftEyeRef}>
-        <mesh position={[-0.45, 0.2, 1.35]}>
-          {/* Eye white/glow */}
-          <sphereGeometry args={[0.22, 32, 32]} />
-          <meshBasicMaterial
-            color="#4fc3f7"
-            transparent
-            opacity={0.9}
-            blending={THREE.AdditiveBlending}
-          />
+        <mesh position={[-0.35, 0.1, 1.42]}>
+          <extrudeGeometry args={[eyeShape, extrudeSettings]} />
+          <meshBasicMaterial color="#ffffff" />
         </mesh>
-        {/* Pupil */}
-        <mesh position={[-0.45, 0.2, 1.5]}>
-          <sphereGeometry args={[0.1, 32, 32]} />
+        {/* Subtle glow behind eye */}
+        <mesh position={[-0.35, 0.1, 1.38]}>
+          <planeGeometry args={[0.25, 0.5]} />
           <meshBasicMaterial
             color="#ffffff"
             transparent
-            opacity={1}
-          />
-        </mesh>
-        {/* Eye inner glow */}
-        <mesh position={[-0.45, 0.2, 1.32]}>
-          <sphereGeometry args={[0.28, 32, 32]} />
-          <meshBasicMaterial
-            color="#29b6f6"
-            transparent
-            opacity={0.4}
+            opacity={0.3}
             blending={THREE.AdditiveBlending}
           />
         </mesh>
@@ -141,31 +190,17 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
 
       {/* Right Eye */}
       <group ref={rightEyeRef}>
-        <mesh position={[0.45, 0.2, 1.35]}>
-          <sphereGeometry args={[0.22, 32, 32]} />
-          <meshBasicMaterial
-            color="#4fc3f7"
-            transparent
-            opacity={0.9}
-            blending={THREE.AdditiveBlending}
-          />
+        <mesh position={[0.35, 0.1, 1.42]}>
+          <extrudeGeometry args={[eyeShape, extrudeSettings]} />
+          <meshBasicMaterial color="#ffffff" />
         </mesh>
-        {/* Pupil */}
-        <mesh position={[0.45, 0.2, 1.5]}>
-          <sphereGeometry args={[0.1, 32, 32]} />
+        {/* Subtle glow behind eye */}
+        <mesh position={[0.35, 0.1, 1.38]}>
+          <planeGeometry args={[0.25, 0.5]} />
           <meshBasicMaterial
             color="#ffffff"
             transparent
-            opacity={1}
-          />
-        </mesh>
-        {/* Eye inner glow */}
-        <mesh position={[0.45, 0.2, 1.32]}>
-          <sphereGeometry args={[0.28, 32, 32]} />
-          <meshBasicMaterial
-            color="#29b6f6"
-            transparent
-            opacity={0.4}
+            opacity={0.3}
             blending={THREE.AdditiveBlending}
           />
         </mesh>
@@ -189,18 +224,32 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const radius = 1.6 + Math.random() * 0.5;
+      const radius = 1.7 + Math.random() * 0.6;
 
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = radius * Math.cos(phi);
 
-      // Blue color palette
-      colors[i * 3] = 0.2 + Math.random() * 0.3;
-      colors[i * 3 + 1] = 0.5 + Math.random() * 0.4;
-      colors[i * 3 + 2] = 0.8 + Math.random() * 0.2;
+      // Mixed teal/blue/pink color palette
+      const colorChoice = Math.random();
+      if (colorChoice < 0.4) {
+        // Teal
+        colors[i * 3] = 0.0 + Math.random() * 0.2;
+        colors[i * 3 + 1] = 0.7 + Math.random() * 0.3;
+        colors[i * 3 + 2] = 0.7 + Math.random() * 0.3;
+      } else if (colorChoice < 0.7) {
+        // Blue
+        colors[i * 3] = 0.2 + Math.random() * 0.2;
+        colors[i * 3 + 1] = 0.4 + Math.random() * 0.3;
+        colors[i * 3 + 2] = 0.9 + Math.random() * 0.1;
+      } else {
+        // Coral/pink
+        colors[i * 3] = 0.9 + Math.random() * 0.1;
+        colors[i * 3 + 1] = 0.4 + Math.random() * 0.2;
+        colors[i * 3 + 2] = 0.4 + Math.random() * 0.2;
+      }
 
-      sizes[i] = Math.random() * 0.015 + 0.008;
+      sizes[i] = Math.random() * 0.012 + 0.006;
     }
 
     originalPositions.current = positions.slice();
@@ -212,22 +261,22 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
 
     const time = state.clock.elapsedTime;
 
-    targetRotation.current.x = mousePosition.y * 0.3;
-    targetRotation.current.y = mousePosition.x * 0.5;
+    targetRotation.current.x = mousePosition.y * 0.25;
+    targetRotation.current.y = mousePosition.x * 0.4;
 
-    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.06;
-    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.06;
-    meshRef.current.rotation.y += 0.001;
+    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.05;
+    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.05;
+    meshRef.current.rotation.y += 0.002;
 
-    const targetScale = isPressed ? 1.12 : 1;
-    currentScale.current += (targetScale - currentScale.current) * 0.12;
+    const targetScale = isPressed ? 1.1 : 1;
+    currentScale.current += (targetScale - currentScale.current) * 0.1;
     meshRef.current.scale.setScalar(currentScale.current);
 
     const geometry = meshRef.current.geometry;
     const positionAttribute = geometry.attributes.position;
     const positionsArray = positionAttribute.array as Float32Array;
 
-    const noiseIntensity = isPressed ? 0.025 : 0.012;
+    const noiseIntensity = isPressed ? 0.02 : 0.01;
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
@@ -235,9 +284,9 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
       const originalY = originalPositions.current[i3 + 1];
       const originalZ = originalPositions.current[i3 + 2];
 
-      const noiseX = Math.sin(time * 0.4 + i * 0.04) * noiseIntensity;
-      const noiseY = Math.cos(time * 0.35 + i * 0.05) * noiseIntensity;
-      const noiseZ = Math.sin(time * 0.3 + i * 0.06) * noiseIntensity;
+      const noiseX = Math.sin(time * 0.3 + i * 0.03) * noiseIntensity;
+      const noiseY = Math.cos(time * 0.25 + i * 0.04) * noiseIntensity;
+      const noiseZ = Math.sin(time * 0.2 + i * 0.05) * noiseIntensity;
 
       positionsArray[i3] = originalX + noiseX;
       positionsArray[i3 + 1] = originalY + noiseY;
@@ -270,53 +319,15 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.02}
+        size={0.018}
         vertexColors
         transparent
-        opacity={0.7}
+        opacity={0.6}
         sizeAttenuation
         blending={THREE.AdditiveBlending}
         depthWrite={false}
       />
     </points>
-  );
-};
-
-// Outer glow ring
-const OuterGlow = ({ mousePosition, isPressed }: SphereProps) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const targetRotation = useRef({ x: 0, y: 0 });
-  const currentScale = useRef(1);
-
-  useFrame((state) => {
-    if (!meshRef.current) return;
-
-    const time = state.clock.elapsedTime;
-
-    targetRotation.current.x = mousePosition.y * 0.3;
-    targetRotation.current.y = mousePosition.x * 0.5;
-
-    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.06;
-    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.06;
-
-    const targetScale = isPressed ? 1.15 : 1;
-    currentScale.current += (targetScale - currentScale.current) * 0.1;
-    
-    const pulse = 1 + Math.sin(time * 2) * 0.02;
-    meshRef.current.scale.setScalar(currentScale.current * pulse);
-  });
-
-  return (
-    <mesh ref={meshRef}>
-      <sphereGeometry args={[1.8, 32, 32]} />
-      <meshBasicMaterial
-        color="#1565c0"
-        transparent
-        opacity={0.15}
-        blending={THREE.AdditiveBlending}
-        side={THREE.BackSide}
-      />
-    </mesh>
   );
 };
 
@@ -336,9 +347,9 @@ const InteractiveParticleSphere = ({ size = "normal" }: InteractiveParticleSpher
   };
 
   const particleCounts = {
-    small: 2000,
-    normal: 3000,
-    large: 4000,
+    small: 1500,
+    normal: 2500,
+    large: 3500,
   };
 
   useEffect(() => {
@@ -377,14 +388,14 @@ const InteractiveParticleSphere = ({ size = "normal" }: InteractiveParticleSpher
       ref={containerRef}
       className={`${sizeClasses[size]} cursor-pointer relative`}
     >
-      {/* Blue ambient glow */}
+      {/* Ambient glow - teal/blue/coral mix */}
       <div
         className="absolute inset-0 rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(33, 150, 243, 0.4) 0%, rgba(21, 101, 192, 0.2) 40%, transparent 70%)",
-          transform: isPressed ? "scale(1.25)" : "scale(1.1)",
+          background: "radial-gradient(circle, rgba(0, 200, 180, 0.3) 0%, rgba(50, 120, 220, 0.2) 40%, rgba(255, 100, 100, 0.1) 60%, transparent 75%)",
+          transform: isPressed ? "scale(1.3)" : "scale(1.15)",
           transition: "transform 0.3s ease-out",
-          filter: "blur(20px)",
+          filter: "blur(25px)",
         }}
       />
 
@@ -393,10 +404,8 @@ const InteractiveParticleSphere = ({ size = "normal" }: InteractiveParticleSpher
         style={{ background: "transparent" }}
         gl={{ alpha: true, antialias: true }}
       >
-        <OuterGlow mousePosition={mousePosition} isPressed={isPressed} />
         <ParticleCloud count={particleCounts[size]} mousePosition={mousePosition} isPressed={isPressed} />
-        <GlowingSphere mousePosition={mousePosition} isPressed={isPressed} />
-        <InnerGlow mousePosition={mousePosition} isPressed={isPressed} />
+        <GradientSphere mousePosition={mousePosition} isPressed={isPressed} />
         <Eyes mousePosition={mousePosition} isPressed={isPressed} />
       </Canvas>
     </div>
