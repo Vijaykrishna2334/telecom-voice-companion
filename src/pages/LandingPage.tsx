@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { Mic, MessageSquare, Zap, Shield, Globe, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import ParticleSphere from "@/components/ParticleSphere";
 
 const features = [
   {
@@ -107,28 +109,22 @@ const LandingPage = () => {
             </Link>
           </div>
 
-          {/* Hero Orb Preview */}
+          {/* Hero Particle Sphere */}
           <div 
-            className="mt-20 relative"
+            className="mt-16 relative flex justify-center"
             style={{ animation: "fade-up 0.5s ease-out 0.4s forwards", opacity: 0 }}
           >
-            <div className="relative w-48 h-48 mx-auto">
-              {/* Ripple effects */}
-              <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" />
-              <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" style={{ animationDelay: "-0.5s" }} />
-              <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" style={{ animationDelay: "-1s" }} />
-              
-              {/* Main orb */}
-              <div 
-                className="absolute inset-4 rounded-full animate-orb-pulse"
-                style={{
-                  background: "radial-gradient(circle at 30% 30%, hsl(183 100% 70%) 0%, hsl(183 100% 50%) 30%, hsl(200 100% 40%) 70%, hsl(222 47% 15%) 100%)",
-                }}
+            <Suspense fallback={
+              <div className="w-64 h-64 md:w-80 md:h-80 rounded-full flex items-center justify-center">
+                <div className="w-32 h-32 rounded-full bg-primary/20 animate-pulse" />
+              </div>
+            }>
+              <ParticleSphere
+                isActive={true}
+                isSpeaking={false}
+                size="normal"
               />
-              
-              {/* Inner glow */}
-              <div className="absolute inset-8 rounded-full bg-primary/30 blur-xl" />
-            </div>
+            </Suspense>
           </div>
         </div>
       </section>
