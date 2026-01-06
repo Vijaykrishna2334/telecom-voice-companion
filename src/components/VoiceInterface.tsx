@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import { Mic, MicOff, Phone, PhoneOff, Zap, Key, Users, Droplet, Grid3X3, Plus, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ParticleSphere from "./ParticleSphere";
 
 type OrbState = "idle" | "listening" | "processing" | "speaking";
 
@@ -259,71 +260,20 @@ const VoiceInterface = ({ sessionId }: VoiceInterfaceProps) => {
         )}
       </div>
 
-      {/* Center - Animated Orb */}
+      {/* Center - 3D Particle Sphere */}
       <div className="flex flex-col items-center justify-center">
         <div className="relative mb-8">
-          {/* Orb Container with rounded corners */}
-          <div className="relative w-72 h-72 md:w-80 md:h-80 rounded-[2.5rem] overflow-hidden bg-secondary/30 backdrop-blur-sm border border-border/20">
-            {/* Animated Gradient Orb */}
-            <div
-              className={`absolute inset-4 rounded-[2rem] cursor-pointer transition-all duration-700 ${
-                isConnected ? "orb-active" : ""
-              }`}
-              onClick={isConnected ? undefined : startVoice}
-              style={{
-                background: isConnected
-                  ? `
-                    radial-gradient(ellipse 80% 50% at 50% 100%, hsl(350 85% 55%) 0%, transparent 50%),
-                    radial-gradient(ellipse 60% 40% at 30% 80%, hsl(280 90% 60%) 0%, transparent 40%),
-                    radial-gradient(ellipse 70% 50% at 70% 70%, hsl(200 100% 60%) 0%, transparent 45%),
-                    radial-gradient(ellipse 50% 30% at 50% 50%, hsl(30 100% 60%) 0%, transparent 40%),
-                    radial-gradient(ellipse 80% 60% at 50% 30%, hsl(190 100% 50%) 0%, transparent 50%),
-                    linear-gradient(180deg, hsl(222 47% 12%) 0%, hsl(222 47% 8%) 100%)
-                  `
-                  : `
-                    radial-gradient(ellipse 60% 40% at 50% 70%, hsl(200 80% 40%) 0%, transparent 50%),
-                    radial-gradient(ellipse 50% 30% at 40% 60%, hsl(280 60% 35%) 0%, transparent 40%),
-                    linear-gradient(180deg, hsl(222 47% 12%) 0%, hsl(222 47% 8%) 100%)
-                  `,
-                boxShadow: isConnected
-                  ? `
-                    0 20px 60px hsl(350 85% 45% / 0.3),
-                    0 10px 40px hsl(200 100% 50% / 0.2),
-                    inset 0 -20px 40px hsl(350 85% 50% / 0.2),
-                    inset 0 20px 40px hsl(200 100% 60% / 0.15)
-                  `
-                  : `
-                    0 10px 30px hsl(200 80% 30% / 0.2),
-                    inset 0 -10px 20px hsl(280 60% 30% / 0.1)
-                  `,
-              }}
-            >
-              {/* Wave lines overlay */}
-              <svg className="absolute inset-0 w-full h-full opacity-40" viewBox="0 0 100 100" preserveAspectRatio="none">
-                {[...Array(12)].map((_, i) => (
-                  <path
-                    key={i}
-                    d={`M 0 ${50 + i * 3} Q 25 ${45 + i * 3 + Math.sin(i) * 5} 50 ${50 + i * 3} T 100 ${50 + i * 3}`}
-                    fill="none"
-                    stroke="hsl(200 100% 70% / 0.3)"
-                    strokeWidth="0.3"
-                    className={isConnected ? "animate-wave" : ""}
-                    style={{ animationDelay: `${i * 0.1}s` }}
-                  />
-                ))}
-              </svg>
-
-              {/* Inner glow effect */}
-              <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-t from-transparent via-transparent to-primary/10" />
-
-              {/* Center icon when not connected */}
-              {!isConnected && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Mic className="w-12 h-12 text-foreground/40" />
-                </div>
-              )}
+          <Suspense fallback={
+            <div className="w-72 h-72 md:w-80 md:h-80 rounded-[2.5rem] bg-secondary/30 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full border-2 border-primary border-t-transparent animate-spin" />
             </div>
-          </div>
+          }>
+            <ParticleSphere
+              isActive={isConnected}
+              isSpeaking={orbState === "speaking"}
+              onClick={isConnected ? undefined : startVoice}
+            />
+          </Suspense>
         </div>
 
         {/* Status Text */}
