@@ -115,29 +115,105 @@ const GradientSphere = ({ mousePosition, isPressed }: SphereProps) => {
   );
 };
 
-// Rounded rectangular eyes
+// Animated eyes with blinking and emotions
 const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
   const leftEyeRef = useRef<THREE.Group>(null);
   const rightEyeRef = useRef<THREE.Group>(null);
+  const leftEyeMeshRef = useRef<THREE.Mesh>(null);
+  const rightEyeMeshRef = useRef<THREE.Mesh>(null);
   const currentScale = useRef(1);
+  const blinkProgress = useRef(0);
+  const lastBlinkTime = useRef(0);
+  const isBlinking = useRef(false);
+  const emotionState = useRef<"normal" | "happy" | "curious" | "sleepy">("normal");
+  const emotionTimer = useRef(0);
 
-  useFrame(() => {
+  useFrame((state) => {
     if (!leftEyeRef.current || !rightEyeRef.current) return;
+    if (!leftEyeMeshRef.current || !rightEyeMeshRef.current) return;
 
-    // Eyes follow mouse
+    const time = state.clock.elapsedTime;
+
+    // Blinking logic - blink every 3-5 seconds
+    if (!isBlinking.current && time - lastBlinkTime.current > 3 + Math.random() * 2) {
+      isBlinking.current = true;
+      lastBlinkTime.current = time;
+    }
+
+    // Blink animation
+    if (isBlinking.current) {
+      blinkProgress.current += 0.15;
+      if (blinkProgress.current >= Math.PI) {
+        blinkProgress.current = 0;
+        isBlinking.current = false;
+      }
+    }
+
+    const blinkScale = 1 - Math.sin(blinkProgress.current) * 0.9;
+
+    // Emotion changes every 5-8 seconds
+    if (time - emotionTimer.current > 5 + Math.random() * 3) {
+      emotionTimer.current = time;
+      const emotions: Array<"normal" | "happy" | "curious" | "sleepy"> = ["normal", "happy", "curious", "sleepy"];
+      emotionState.current = emotions[Math.floor(Math.random() * emotions.length)];
+    }
+
+    // Eye shape based on emotion
+    let eyeScaleY = blinkScale;
+    let eyeOffsetY = 0;
+    let eyeRotation = 0;
+
+    switch (emotionState.current) {
+      case "happy":
+        eyeScaleY *= 0.7; // Squinted happy eyes
+        eyeOffsetY = 0.05;
+        break;
+      case "curious":
+        eyeScaleY *= 1.1; // Wide curious eyes
+        eyeRotation = Math.sin(time * 2) * 0.1; // Slight tilt
+        break;
+      case "sleepy":
+        eyeScaleY *= 0.5; // Half-closed sleepy eyes
+        eyeOffsetY = -0.03;
+        break;
+      default:
+        // Normal eyes with subtle breathing
+        eyeScaleY *= 1 + Math.sin(time * 1.5) * 0.05;
+    }
+
+    // Apply eye transformations
+    leftEyeMeshRef.current.scale.y = eyeScaleY;
+    rightEyeMeshRef.current.scale.y = eyeScaleY;
+    leftEyeMeshRef.current.position.y = 0.1 + eyeOffsetY;
+    rightEyeMeshRef.current.position.y = 0.1 + eyeOffsetY;
+
+    // Eyes follow mouse with slight delay
     const eyeRotationX = mousePosition.y * 0.25;
     const eyeRotationY = mousePosition.x * 0.4;
 
-    leftEyeRef.current.rotation.x = eyeRotationX;
+    leftEyeRef.current.rotation.x = eyeRotationX + eyeRotation;
     leftEyeRef.current.rotation.y = eyeRotationY + 0.002;
-    rightEyeRef.current.rotation.x = eyeRotationX;
+    rightEyeRef.current.rotation.x = eyeRotationX - eyeRotation;
     rightEyeRef.current.rotation.y = eyeRotationY + 0.002;
 
-    // Scale on press
-    const targetScale = isPressed ? 1.1 : 1;
-    currentScale.current += (targetScale - currentScale.current) * 0.1;
+    // Subtle eye movement when "looking around"
+    if (emotionState.current === "curious") {
+      const lookAround = Math.sin(time * 3) * 0.05;
+      leftEyeRef.current.rotation.y += lookAround;
+      rightEyeRef.current.rotation.y += lookAround;
+    }
+
+    // Scale on press - "surprised" reaction
+    const targetScale = isPressed ? 1.15 : 1;
+    currentScale.current += (targetScale - currentScale.current) * 0.15;
     leftEyeRef.current.scale.setScalar(currentScale.current);
     rightEyeRef.current.scale.setScalar(currentScale.current);
+
+    // When pressed, eyes go wide
+    if (isPressed) {
+      leftEyeMeshRef.current.scale.y = 1.2;
+      rightEyeMeshRef.current.scale.y = 1.2;
+    }
   });
 
   // Create rounded rectangle shape for eyes
@@ -146,7 +222,7 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
     const width = 0.12;
     const height = 0.35;
     const radius = 0.06;
-    
+
     shape.moveTo(-width / 2 + radius, -height / 2);
     shape.lineTo(width / 2 - radius, -height / 2);
     shape.quadraticCurveTo(width / 2, -height / 2, width / 2, -height / 2 + radius);
@@ -156,53 +232,46 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
     shape.quadraticCurveTo(-width / 2, height / 2, -width / 2, height / 2 - radius);
     shape.lineTo(-width / 2, -height / 2 + radius);
     shape.quadraticCurveTo(-width / 2, -height / 2, -width / 2 + radius, -height / 2);
-    
+
     return shape;
   }, []);
 
-  const extrudeSettings = useMemo(() => ({
-    depth: 0.05,
-    bevelEnabled: true,
-    bevelThickness: 0.02,
-    bevelSize: 0.02,
-    bevelSegments: 8,
-  }), []);
+  const extrudeSettings = useMemo(
+    () => ({
+      depth: 0.05,
+      bevelEnabled: true,
+      bevelThickness: 0.02,
+      bevelSize: 0.02,
+      bevelSegments: 8,
+    }),
+    []
+  );
 
   return (
     <>
       {/* Left Eye */}
       <group ref={leftEyeRef}>
-        <mesh position={[-0.35, 0.1, 1.42]}>
+        <mesh ref={leftEyeMeshRef} position={[-0.35, 0.1, 1.42]}>
           <extrudeGeometry args={[eyeShape, extrudeSettings]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
         {/* Subtle glow behind eye */}
         <mesh position={[-0.35, 0.1, 1.38]}>
           <planeGeometry args={[0.25, 0.5]} />
-          <meshBasicMaterial
-            color="#ffffff"
-            transparent
-            opacity={0.3}
-            blending={THREE.AdditiveBlending}
-          />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.3} blending={THREE.AdditiveBlending} />
         </mesh>
       </group>
 
       {/* Right Eye */}
       <group ref={rightEyeRef}>
-        <mesh position={[0.35, 0.1, 1.42]}>
+        <mesh ref={rightEyeMeshRef} position={[0.35, 0.1, 1.42]}>
           <extrudeGeometry args={[eyeShape, extrudeSettings]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
         {/* Subtle glow behind eye */}
         <mesh position={[0.35, 0.1, 1.38]}>
           <planeGeometry args={[0.25, 0.5]} />
-          <meshBasicMaterial
-            color="#ffffff"
-            transparent
-            opacity={0.3}
-            blending={THREE.AdditiveBlending}
-          />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.3} blending={THREE.AdditiveBlending} />
         </mesh>
       </group>
     </>
@@ -233,17 +302,14 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
       // Mixed teal/blue/pink color palette
       const colorChoice = Math.random();
       if (colorChoice < 0.4) {
-        // Teal
         colors[i * 3] = 0.0 + Math.random() * 0.2;
         colors[i * 3 + 1] = 0.7 + Math.random() * 0.3;
         colors[i * 3 + 2] = 0.7 + Math.random() * 0.3;
       } else if (colorChoice < 0.7) {
-        // Blue
         colors[i * 3] = 0.2 + Math.random() * 0.2;
         colors[i * 3 + 1] = 0.4 + Math.random() * 0.3;
         colors[i * 3 + 2] = 0.9 + Math.random() * 0.1;
       } else {
-        // Coral/pink
         colors[i * 3] = 0.9 + Math.random() * 0.1;
         colors[i * 3 + 1] = 0.4 + Math.random() * 0.2;
         colors[i * 3 + 2] = 0.4 + Math.random() * 0.2;
@@ -299,24 +365,9 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
   return (
     <points ref={meshRef}>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          count={count}
-          array={colors}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-size"
-          count={count}
-          array={sizes}
-          itemSize={1}
-        />
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-color" count={count} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
       </bufferGeometry>
       <pointsMaterial
         size={0.018}
@@ -384,15 +435,13 @@ const InteractiveParticleSphere = ({ size = "normal" }: InteractiveParticleSpher
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className={`${sizeClasses[size]} cursor-pointer relative`}
-    >
+    <div ref={containerRef} className={`${sizeClasses[size]} cursor-pointer relative`}>
       {/* Ambient glow - teal/blue/coral mix */}
       <div
         className="absolute inset-0 rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(0, 200, 180, 0.3) 0%, rgba(50, 120, 220, 0.2) 40%, rgba(255, 100, 100, 0.1) 60%, transparent 75%)",
+          background:
+            "radial-gradient(circle, rgba(0, 200, 180, 0.3) 0%, rgba(50, 120, 220, 0.2) 40%, rgba(255, 100, 100, 0.1) 60%, transparent 75%)",
           transform: isPressed ? "scale(1.3)" : "scale(1.15)",
           transition: "transform 0.3s ease-out",
           filter: "blur(25px)",
