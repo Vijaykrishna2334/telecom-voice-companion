@@ -1,10 +1,10 @@
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Headphones, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import ParticleSphere from "@/components/ParticleSphere";
+import particleSphereVideo from "@/assets/particle-sphere.mp4";
 
 const AuthPage = () => {
   const [searchParams] = useSearchParams();
@@ -160,21 +160,20 @@ const AuthPage = () => {
 
       {/* Right Panel - Visual */}
       <div className="hidden lg:flex flex-1 items-center justify-center bg-black relative overflow-hidden">
-        {/* 3D Particle Sphere */}
-        <Suspense fallback={
-          <div className="w-80 h-80 rounded-full flex items-center justify-center">
-            <div className="w-20 h-20 rounded-full border-2 border-white/20 border-t-white/60 animate-spin" />
-          </div>
-        }>
-          <ParticleSphere
-            isActive={true}
-            isSpeaking={false}
-            size="large"
-          />
-        </Suspense>
+        {/* Video Particle Sphere */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-full object-contain"
+          style={{ maxWidth: "600px", maxHeight: "600px" }}
+        >
+          <source src={particleSphereVideo} type="video/mp4" />
+        </video>
 
         {/* Text */}
-        <div className="absolute bottom-12 left-12 right-12 text-center">
+        <div className="absolute bottom-12 left-12 right-12 text-center z-10">
           <h3 className="text-2xl font-bold mb-2 text-white">Experience AI Support</h3>
           <p className="text-white/60">Voice and chat assistance at your fingertips</p>
         </div>
