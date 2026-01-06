@@ -211,3 +211,31 @@
     transform: translateY(-4px);
   }
 }
+
+@keyframes wave {
+  0%, 100% {
+    d: path('M 0 50 Q 25 45 50 50 T 100 50');
+  }
+  50% {
+    d: path('M 0 50 Q 25 55 50 50 T 100 50');
+  }
+}
+
+.animate-wave {
+  animation: wave 2s ease-in-out infinite;
+}
+
+.orb-active {
+  animation: orb-breathe 4s ease-in-out infinite;
+}
+
+@keyframes orb-breathe {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.02);
+    filter: brightness(1.1);
+  }
+}
