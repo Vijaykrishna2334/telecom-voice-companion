@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { Mic, MessageSquare, Zap, Shield, Globe, Headphones } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import ParticleSphere from "@/components/ParticleSphere";
+import InteractiveParticleSphere from "@/components/InteractiveParticleSphere";
 
 const features = [
   {
@@ -115,15 +115,11 @@ const LandingPage = () => {
             style={{ animation: "fade-up 0.5s ease-out 0.4s forwards", opacity: 0 }}
           >
             <Suspense fallback={
-              <div className="w-64 h-64 md:w-80 md:h-80 rounded-full flex items-center justify-center">
+              <div className="w-64 h-64 md:w-72 md:h-72 rounded-full flex items-center justify-center">
                 <div className="w-32 h-32 rounded-full bg-primary/20 animate-pulse" />
               </div>
             }>
-              <ParticleSphere
-                isActive={true}
-                isSpeaking={false}
-                size="normal"
-              />
+              <InteractiveParticleSphere size="normal" />
             </Suspense>
           </div>
         </div>
