@@ -1,10 +1,9 @@
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Headphones, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import AuthParticleSphere from "@/components/AuthParticleSphere";
 
 const AuthPage = () => {
   const [searchParams] = useSearchParams();
@@ -159,22 +158,30 @@ const AuthPage = () => {
       </div>
 
       {/* Right Panel - Visual */}
-      <div className="hidden lg:flex flex-1 items-center justify-center p-12 bg-background relative overflow-hidden">
+      <div className="hidden lg:flex flex-1 items-center justify-center p-12 bg-secondary/30 relative overflow-hidden">
         {/* Ambient effects */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/3 right-1/3 w-96 h-96 bg-primary/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-1/3 left-1/3 w-64 h-64 bg-accent/10 rounded-full blur-[100px]" />
+          <div className="absolute top-1/4 right-1/4 w-64 h-64 bg-primary/20 rounded-full blur-3xl animate-float" />
+          <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-accent/20 rounded-full blur-3xl animate-float" style={{ animationDelay: "-3s" }} />
         </div>
 
-        {/* 3D Particle Sphere */}
-        <div className="relative">
-          <Suspense fallback={
-            <div className="w-80 h-80 md:w-96 md:h-96 rounded-full flex items-center justify-center">
-              <div className="w-48 h-48 rounded-full bg-primary/20 animate-pulse" />
-            </div>
-          }>
-            <AuthParticleSphere />
-          </Suspense>
+        {/* Orb */}
+        <div className="relative w-72 h-72">
+          {/* Ripple effects */}
+          <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" />
+          <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" style={{ animationDelay: "-0.5s" }} />
+          <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" style={{ animationDelay: "-1s" }} />
+          
+          {/* Main orb */}
+          <div 
+            className="absolute inset-6 rounded-full animate-orb-pulse"
+            style={{
+              background: "radial-gradient(circle at 30% 30%, hsl(183 100% 70%) 0%, hsl(183 100% 50%) 30%, hsl(200 100% 40%) 70%, hsl(222 47% 15%) 100%)",
+            }}
+          />
+          
+          {/* Inner glow */}
+          <div className="absolute inset-12 rounded-full bg-primary/30 blur-xl" />
         </div>
 
         {/* Text */}
