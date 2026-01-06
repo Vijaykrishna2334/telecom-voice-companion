@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Headphones, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import ParticleSphere from "@/components/ParticleSphere";
 
 const AuthPage = () => {
   const [searchParams] = useSearchParams();
@@ -158,36 +159,24 @@ const AuthPage = () => {
       </div>
 
       {/* Right Panel - Visual */}
-      <div className="hidden lg:flex flex-1 items-center justify-center p-12 bg-secondary/30 relative overflow-hidden">
-        {/* Ambient effects */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 right-1/4 w-64 h-64 bg-primary/20 rounded-full blur-3xl animate-float" />
-          <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-accent/20 rounded-full blur-3xl animate-float" style={{ animationDelay: "-3s" }} />
-        </div>
-
-        {/* Orb */}
-        <div className="relative w-72 h-72">
-          {/* Ripple effects */}
-          <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" />
-          <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" style={{ animationDelay: "-0.5s" }} />
-          <div className="absolute inset-0 rounded-full border border-primary/20 animate-ripple" style={{ animationDelay: "-1s" }} />
-          
-          {/* Main orb */}
-          <div 
-            className="absolute inset-6 rounded-full animate-orb-pulse"
-            style={{
-              background: "radial-gradient(circle at 30% 30%, hsl(183 100% 70%) 0%, hsl(183 100% 50%) 30%, hsl(200 100% 40%) 70%, hsl(222 47% 15%) 100%)",
-            }}
+      <div className="hidden lg:flex flex-1 items-center justify-center bg-black relative overflow-hidden">
+        {/* 3D Particle Sphere */}
+        <Suspense fallback={
+          <div className="w-80 h-80 rounded-full flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full border-2 border-white/20 border-t-white/60 animate-spin" />
+          </div>
+        }>
+          <ParticleSphere
+            isActive={true}
+            isSpeaking={false}
+            size="large"
           />
-          
-          {/* Inner glow */}
-          <div className="absolute inset-12 rounded-full bg-primary/30 blur-xl" />
-        </div>
+        </Suspense>
 
         {/* Text */}
         <div className="absolute bottom-12 left-12 right-12 text-center">
-          <h3 className="text-2xl font-bold mb-2">Experience AI Support</h3>
-          <p className="text-muted-foreground">Voice and chat assistance at your fingertips</p>
+          <h3 className="text-2xl font-bold mb-2 text-white">Experience AI Support</h3>
+          <p className="text-white/60">Voice and chat assistance at your fingertips</p>
         </div>
       </div>
     </div>
