@@ -2,54 +2,6 @@ import { useRef, useMemo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-interface GlowingOrbProps {
-  isHovered: boolean;
-}
-
-const GlowingOrb = ({ isHovered }: GlowingOrbProps) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += 0.002;
-      meshRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
-    }
-  });
-
-  return (
-    <mesh ref={meshRef}>
-      <sphereGeometry args={[1.2, 64, 64]} />
-      <meshBasicMaterial
-        color={new THREE.Color("hsl(183, 100%, 55%)")}
-        transparent
-        opacity={0.9}
-      />
-    </mesh>
-  );
-};
-
-const InnerGlow = () => {
-  const meshRef = useRef<THREE.Mesh>(null);
-
-  useFrame((state) => {
-    if (meshRef.current) {
-      const scale = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.05;
-      meshRef.current.scale.set(scale, scale, scale);
-    }
-  });
-
-  return (
-    <mesh ref={meshRef}>
-      <sphereGeometry args={[1.5, 32, 32]} />
-      <meshBasicMaterial
-        color={new THREE.Color("hsl(183, 100%, 60%)")}
-        transparent
-        opacity={0.15}
-      />
-    </mesh>
-  );
-};
-
 interface ParticlesProps {
   count: number;
 }
@@ -58,32 +10,34 @@ const Particles = ({ count }: ParticlesProps) => {
   const mesh = useRef<THREE.Points>(null);
   const originalPositions = useRef<Float32Array | null>(null);
 
-  const [positions, colors, sizes] = useMemo(() => {
+  const [positions, sizes, opacities] = useMemo(() => {
     const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
     const sizes = new Float32Array(count);
+    const opacities = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
+      // Distribute points on sphere surface with slight variation
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      // Particles orbit around the orb at varying distances
-      const radius = 1.8 + Math.random() * 0.8;
+      
+      // Vary radius slightly for more organic look
+      const baseRadius = 2;
+      const radiusVariation = (Math.random() - 0.5) * 0.15;
+      const radius = baseRadius + radiusVariation;
 
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = radius * Math.cos(phi);
 
-      // Cyan-white gradient colors
-      const intensity = 0.7 + Math.random() * 0.3;
-      colors[i * 3] = intensity * 0.6;
-      colors[i * 3 + 1] = intensity;
-      colors[i * 3 + 2] = intensity;
-
-      sizes[i] = Math.random() * 0.03 + 0.01;
+      // Vary particle sizes for depth effect
+      sizes[i] = Math.random() * 0.015 + 0.008;
+      
+      // Vary opacity for more realistic look
+      opacities[i] = Math.random() * 0.5 + 0.5;
     }
 
     originalPositions.current = positions.slice();
-    return [positions, colors, sizes];
+    return [positions, sizes, opacities];
   }, [count]);
 
   useFrame((state) => {
@@ -94,25 +48,30 @@ const Particles = ({ count }: ParticlesProps) => {
     const positionAttribute = geometry.attributes.position;
     const positionsArray = positionAttribute.array as Float32Array;
 
-    // Rotate particles
-    mesh.current.rotation.y += 0.003;
-    mesh.current.rotation.x += 0.001;
+    // Very slow, smooth rotation
+    mesh.current.rotation.y += 0.001;
+    mesh.current.rotation.x = Math.sin(time * 0.1) * 0.05;
 
-    // Subtle particle movement
+    // Subtle particle breathing/movement
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
       const originalX = originalPositions.current[i3];
       const originalY = originalPositions.current[i3 + 1];
       const originalZ = originalPositions.current[i3 + 2];
 
-      const noiseScale = 0.03;
-      const noiseX = Math.sin(time * 1.5 + i * 0.1) * noiseScale;
-      const noiseY = Math.cos(time * 1.8 + i * 0.12) * noiseScale;
-      const noiseZ = Math.sin(time * 1.2 + i * 0.15) * noiseScale;
+      // Very subtle noise movement
+      const noiseScale = 0.008;
+      const speed = 0.3;
+      const noiseX = Math.sin(time * speed + i * 0.05) * noiseScale;
+      const noiseY = Math.cos(time * speed * 0.8 + i * 0.06) * noiseScale;
+      const noiseZ = Math.sin(time * speed * 0.6 + i * 0.07) * noiseScale;
 
-      positionsArray[i3] = originalX + noiseX;
-      positionsArray[i3 + 1] = originalY + noiseY;
-      positionsArray[i3 + 2] = originalZ + noiseZ;
+      // Very subtle breathing effect
+      const breathe = 1 + Math.sin(time * 0.5) * 0.01;
+
+      positionsArray[i3] = originalX * breathe + noiseX;
+      positionsArray[i3 + 1] = originalY * breathe + noiseY;
+      positionsArray[i3 + 2] = originalZ * breathe + noiseZ;
     }
 
     positionAttribute.needsUpdate = true;
@@ -128,12 +87,6 @@ const Particles = ({ count }: ParticlesProps) => {
           itemSize={3}
         />
         <bufferAttribute
-          attach="attributes-color"
-          count={count}
-          array={colors}
-          itemSize={3}
-        />
-        <bufferAttribute
           attach="attributes-size"
           count={count}
           array={sizes}
@@ -141,10 +94,10 @@ const Particles = ({ count }: ParticlesProps) => {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.025}
-        vertexColors
+        size={0.018}
+        color="#ffffff"
         transparent
-        opacity={0.8}
+        opacity={0.9}
         sizeAttenuation
         blending={THREE.AdditiveBlending}
         depthWrite={false}
@@ -153,38 +106,59 @@ const Particles = ({ count }: ParticlesProps) => {
   );
 };
 
-// Outer ring particles
-const RingParticles = () => {
+// Inner denser particles for core effect
+const CoreParticles = ({ count }: { count: number }) => {
   const mesh = useRef<THREE.Points>(null);
-  const count = 200;
+  const originalPositions = useRef<Float32Array | null>(null);
 
-  const [positions, colors] = useMemo(() => {
+  const positions = useMemo(() => {
     const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
 
     for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const radius = 2.5 + (Math.random() - 0.5) * 0.2;
-      
-      positions[i * 3] = Math.cos(angle) * radius;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 0.3;
-      positions[i * 3 + 2] = Math.sin(angle) * radius;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const radius = 1.85 + (Math.random() - 0.5) * 0.2;
 
-      // Gradient from cyan to purple
-      const t = i / count;
-      colors[i * 3] = 0.3 + t * 0.5;
-      colors[i * 3 + 1] = 0.8 - t * 0.3;
-      colors[i * 3 + 2] = 1;
+      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = radius * Math.cos(phi);
     }
 
-    return [positions, colors];
-  }, []);
+    originalPositions.current = positions.slice();
+    return positions;
+  }, [count]);
 
   useFrame((state) => {
-    if (mesh.current) {
-      mesh.current.rotation.y += 0.005;
-      mesh.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.3) * 0.2;
+    if (!mesh.current || !originalPositions.current) return;
+
+    const time = state.clock.elapsedTime;
+    const geometry = mesh.current.geometry;
+    const positionAttribute = geometry.attributes.position;
+    const positionsArray = positionAttribute.array as Float32Array;
+
+    mesh.current.rotation.y += 0.0008;
+    mesh.current.rotation.z = Math.sin(time * 0.08) * 0.03;
+
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      const originalX = originalPositions.current[i3];
+      const originalY = originalPositions.current[i3 + 1];
+      const originalZ = originalPositions.current[i3 + 2];
+
+      const noiseScale = 0.005;
+      const speed = 0.25;
+      const noiseX = Math.sin(time * speed + i * 0.08) * noiseScale;
+      const noiseY = Math.cos(time * speed * 0.7 + i * 0.09) * noiseScale;
+      const noiseZ = Math.sin(time * speed * 0.5 + i * 0.1) * noiseScale;
+
+      const breathe = 1 + Math.sin(time * 0.4) * 0.008;
+
+      positionsArray[i3] = originalX * breathe + noiseX;
+      positionsArray[i3 + 1] = originalY * breathe + noiseY;
+      positionsArray[i3 + 2] = originalZ * breathe + noiseZ;
     }
+
+    positionAttribute.needsUpdate = true;
   });
 
   return (
@@ -196,18 +170,90 @@ const RingParticles = () => {
           array={positions}
           itemSize={3}
         />
+      </bufferGeometry>
+      <pointsMaterial
+        size={0.012}
+        color="#ffffff"
+        transparent
+        opacity={0.7}
+        sizeAttenuation
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+      />
+    </points>
+  );
+};
+
+// Outer scattered particles
+const OuterParticles = ({ count }: { count: number }) => {
+  const mesh = useRef<THREE.Points>(null);
+  const originalPositions = useRef<Float32Array | null>(null);
+
+  const positions = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const radius = 2.1 + Math.random() * 0.3;
+
+      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = radius * Math.cos(phi);
+    }
+
+    originalPositions.current = positions.slice();
+    return positions;
+  }, [count]);
+
+  useFrame((state) => {
+    if (!mesh.current || !originalPositions.current) return;
+
+    const time = state.clock.elapsedTime;
+    const geometry = mesh.current.geometry;
+    const positionAttribute = geometry.attributes.position;
+    const positionsArray = positionAttribute.array as Float32Array;
+
+    mesh.current.rotation.y += 0.0012;
+    mesh.current.rotation.x = Math.sin(time * 0.12) * 0.04;
+
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      const originalX = originalPositions.current[i3];
+      const originalY = originalPositions.current[i3 + 1];
+      const originalZ = originalPositions.current[i3 + 2];
+
+      const noiseScale = 0.012;
+      const speed = 0.35;
+      const noiseX = Math.sin(time * speed + i * 0.04) * noiseScale;
+      const noiseY = Math.cos(time * speed * 0.9 + i * 0.05) * noiseScale;
+      const noiseZ = Math.sin(time * speed * 0.7 + i * 0.06) * noiseScale;
+
+      const breathe = 1 + Math.sin(time * 0.6) * 0.015;
+
+      positionsArray[i3] = originalX * breathe + noiseX;
+      positionsArray[i3 + 1] = originalY * breathe + noiseY;
+      positionsArray[i3 + 2] = originalZ * breathe + noiseZ;
+    }
+
+    positionAttribute.needsUpdate = true;
+  });
+
+  return (
+    <points ref={mesh}>
+      <bufferGeometry>
         <bufferAttribute
-          attach="attributes-color"
+          attach="attributes-position"
           count={count}
-          array={colors}
+          array={positions}
           itemSize={3}
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.02}
-        vertexColors
+        size={0.014}
+        color="#ffffff"
         transparent
-        opacity={0.6}
+        opacity={0.5}
         sizeAttenuation
         blending={THREE.AdditiveBlending}
         depthWrite={false}
@@ -218,26 +264,16 @@ const RingParticles = () => {
 
 const AuthParticleSphere = () => {
   return (
-    <div className="w-80 h-80 md:w-96 md:h-96">
+    <div className="w-[500px] h-[500px] lg:w-[550px] lg:h-[550px]">
       <Canvas
-        camera={{ position: [0, 0, 5], fov: 50 }}
+        camera={{ position: [0, 0, 5.5], fov: 45 }}
         style={{ background: "transparent" }}
         gl={{ alpha: true, antialias: true }}
       >
-        <ambientLight intensity={0.5} />
-        <pointLight position={[5, 5, 5]} intensity={0.5} />
-        
-        {/* Central glowing orb */}
-        <GlowingOrb isHovered={false} />
-        
-        {/* Inner glow effect */}
-        <InnerGlow />
-        
-        {/* Orbiting particles */}
-        <Particles count={3000} />
-        
-        {/* Ring particles */}
-        <RingParticles />
+        {/* Multiple particle layers for depth */}
+        <Particles count={6000} />
+        <CoreParticles count={3000} />
+        <OuterParticles count={2000} />
       </Canvas>
     </div>
   );

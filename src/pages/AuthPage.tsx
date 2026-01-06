@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Headphones, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import particleSphereVideo from "@/assets/particle-sphere.mp4";
+import AuthParticleSphere from "@/components/AuthParticleSphere";
 
 const AuthPage = () => {
   const [searchParams] = useSearchParams();
@@ -160,17 +160,14 @@ const AuthPage = () => {
 
       {/* Right Panel - Visual */}
       <div className="hidden lg:flex flex-1 items-center justify-center bg-black relative overflow-hidden">
-        {/* Video Particle Sphere */}
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="w-full h-full object-contain"
-          style={{ maxWidth: "600px", maxHeight: "600px" }}
-        >
-          <source src={particleSphereVideo} type="video/mp4" />
-        </video>
+        {/* 3D Particle Sphere - Realistic Recreation */}
+        <Suspense fallback={
+          <div className="w-[500px] h-[500px] flex items-center justify-center">
+            <div className="w-24 h-24 rounded-full border border-white/10 border-t-white/40 animate-spin" />
+          </div>
+        }>
+          <AuthParticleSphere />
+        </Suspense>
 
         {/* Text */}
         <div className="absolute bottom-12 left-12 right-12 text-center z-10">
