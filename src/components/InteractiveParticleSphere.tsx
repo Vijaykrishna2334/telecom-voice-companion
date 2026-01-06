@@ -5,14 +5,17 @@ import * as THREE from "three";
 interface SphereProps {
   mousePosition: { x: number; y: number };
   isPressed: boolean;
+  isUserSpeaking: boolean;
+  isBotSpeaking: boolean;
 }
 
 // Iridescent gradient sphere using custom shader
-const GradientSphere = ({ mousePosition, isPressed }: SphereProps) => {
+const GradientSphere = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: SphereProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const targetRotation = useRef({ x: 0, y: 0 });
   const currentScale = useRef(1);
+  const waveIntensity = useRef(0);
 
   const shaderMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
@@ -20,23 +23,45 @@ const GradientSphere = ({ mousePosition, isPressed }: SphereProps) => {
         time: { value: 0 },
         mouseX: { value: 0 },
         mouseY: { value: 0 },
+        waveIntensity: { value: 0 },
+        isBotSpeaking: { value: 0 },
       },
       vertexShader: `
+        uniform float time;
+        uniform float waveIntensity;
+        uniform float isBotSpeaking;
+        
         varying vec3 vNormal;
         varying vec3 vPosition;
         varying vec2 vUv;
         
         void main() {
           vNormal = normalize(normalMatrix * normal);
-          vPosition = position;
           vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          
+          vec3 pos = position;
+          
+          // Wave displacement when bot speaks
+          if (isBotSpeaking > 0.0) {
+            float wave1 = sin(pos.x * 3.0 + time * 4.0) * waveIntensity * 0.08;
+            float wave2 = sin(pos.y * 4.0 + time * 3.5) * waveIntensity * 0.06;
+            float wave3 = cos(pos.z * 2.5 + time * 5.0) * waveIntensity * 0.07;
+            float wave4 = sin(length(pos.xy) * 5.0 - time * 6.0) * waveIntensity * 0.05;
+            
+            pos += normal * (wave1 + wave2 + wave3 + wave4);
+          }
+          
+          vPosition = pos;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
       `,
       fragmentShader: `
         uniform float time;
         uniform float mouseX;
         uniform float mouseY;
+        uniform float waveIntensity;
+        uniform float isBotSpeaking;
+        
         varying vec3 vNormal;
         varying vec3 vPosition;
         varying vec2 vUv;
@@ -49,8 +74,8 @@ const GradientSphere = ({ mousePosition, isPressed }: SphereProps) => {
           vec3 coral = vec3(1.0, 0.5, 0.4);
           
           // Create flowing gradient based on position and time
-          float angle = atan(vPosition.y, vPosition.x) + time * 0.3;
-          float dist = length(vPosition.xy);
+          float timeSpeed = isBotSpeaking > 0.0 ? 0.8 : 0.3;
+          float angle = atan(vPosition.y, vPosition.x) + time * timeSpeed;
           
           // Mix colors based on angle and position
           float t1 = sin(angle * 2.0 + time * 0.5) * 0.5 + 0.5;
@@ -66,6 +91,12 @@ const GradientSphere = ({ mousePosition, isPressed }: SphereProps) => {
           
           vec3 finalColor = mix(color1, color2, t2);
           finalColor = mix(finalColor, color3, t3 * 0.5);
+          
+          // Enhanced color shift when speaking
+          if (isBotSpeaking > 0.0) {
+            float speakPulse = sin(time * 8.0) * 0.5 + 0.5;
+            finalColor = mix(finalColor, finalColor * 1.3, speakPulse * waveIntensity * 0.3);
+          }
           
           // Add rim lighting effect
           float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
@@ -91,6 +122,12 @@ const GradientSphere = ({ mousePosition, isPressed }: SphereProps) => {
     materialRef.current.uniforms.mouseX.value = mousePosition.x;
     materialRef.current.uniforms.mouseY.value = mousePosition.y;
 
+    // Wave intensity for bot speaking
+    const targetWave = isBotSpeaking ? 1 : 0;
+    waveIntensity.current += (targetWave - waveIntensity.current) * 0.1;
+    materialRef.current.uniforms.waveIntensity.value = waveIntensity.current;
+    materialRef.current.uniforms.isBotSpeaking.value = isBotSpeaking ? 1 : 0;
+
     // Follow mouse smoothly
     targetRotation.current.x = mousePosition.y * 0.25;
     targetRotation.current.y = mousePosition.x * 0.4;
@@ -98,8 +135,14 @@ const GradientSphere = ({ mousePosition, isPressed }: SphereProps) => {
     meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.06;
     meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.06;
 
-    // Subtle continuous rotation
-    meshRef.current.rotation.y += 0.002;
+    // Rotation speed based on state
+    const baseRotation = 0.002;
+    const userSpeakingRotation = isUserSpeaking ? 0.015 : 0;
+    meshRef.current.rotation.y += baseRotation + userSpeakingRotation;
+    
+    if (isUserSpeaking) {
+      meshRef.current.rotation.x += Math.sin(time * 3) * 0.003;
+    }
 
     // Zoom on press
     const targetScale = isPressed ? 1.1 : 1;
@@ -116,7 +159,7 @@ const GradientSphere = ({ mousePosition, isPressed }: SphereProps) => {
 };
 
 // Animated eyes with blinking and emotions
-const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
+const Eyes = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: SphereProps) => {
   const leftEyeRef = useRef<THREE.Group>(null);
   const rightEyeRef = useRef<THREE.Group>(null);
   const leftEyeMeshRef = useRef<THREE.Mesh>(null);
@@ -125,7 +168,7 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
   const blinkProgress = useRef(0);
   const lastBlinkTime = useRef(0);
   const isBlinking = useRef(false);
-  const emotionState = useRef<"normal" | "happy" | "curious" | "sleepy">("normal");
+  const emotionState = useRef<"normal" | "happy" | "curious" | "sleepy" | "attentive">("normal");
   const emotionTimer = useRef(0);
 
   useFrame((state) => {
@@ -134,15 +177,27 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
 
     const time = state.clock.elapsedTime;
 
-    // Blinking logic - blink every 3-5 seconds
-    if (!isBlinking.current && time - lastBlinkTime.current > 3 + Math.random() * 2) {
+    // Set emotion based on state
+    if (isUserSpeaking) {
+      emotionState.current = "attentive";
+    } else if (isBotSpeaking) {
+      emotionState.current = "happy";
+    } else if (time - emotionTimer.current > 5 + Math.random() * 3) {
+      emotionTimer.current = time;
+      const emotions: Array<"normal" | "happy" | "curious" | "sleepy"> = ["normal", "happy", "curious", "sleepy"];
+      emotionState.current = emotions[Math.floor(Math.random() * emotions.length)];
+    }
+
+    // Blinking logic - blink every 3-5 seconds (less when attentive)
+    const blinkInterval = emotionState.current === "attentive" ? 5 : 3;
+    if (!isBlinking.current && time - lastBlinkTime.current > blinkInterval + Math.random() * 2) {
       isBlinking.current = true;
       lastBlinkTime.current = time;
     }
 
     // Blink animation
     if (isBlinking.current) {
-      blinkProgress.current += 0.15;
+      blinkProgress.current += 0.18;
       if (blinkProgress.current >= Math.PI) {
         blinkProgress.current = 0;
         isBlinking.current = false;
@@ -151,13 +206,6 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
 
     const blinkScale = 1 - Math.sin(blinkProgress.current) * 0.9;
 
-    // Emotion changes every 5-8 seconds
-    if (time - emotionTimer.current > 5 + Math.random() * 3) {
-      emotionTimer.current = time;
-      const emotions: Array<"normal" | "happy" | "curious" | "sleepy"> = ["normal", "happy", "curious", "sleepy"];
-      emotionState.current = emotions[Math.floor(Math.random() * emotions.length)];
-    }
-
     // Eye shape based on emotion
     let eyeScaleY = blinkScale;
     let eyeOffsetY = 0;
@@ -165,19 +213,22 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
 
     switch (emotionState.current) {
       case "happy":
-        eyeScaleY *= 0.7; // Squinted happy eyes
+        eyeScaleY *= 0.7;
         eyeOffsetY = 0.05;
         break;
       case "curious":
-        eyeScaleY *= 1.1; // Wide curious eyes
-        eyeRotation = Math.sin(time * 2) * 0.1; // Slight tilt
+        eyeScaleY *= 1.1;
+        eyeRotation = Math.sin(time * 2) * 0.1;
         break;
       case "sleepy":
-        eyeScaleY *= 0.5; // Half-closed sleepy eyes
+        eyeScaleY *= 0.5;
         eyeOffsetY = -0.03;
         break;
+      case "attentive":
+        eyeScaleY *= 1.15; // Wide open, alert
+        eyeRotation = Math.sin(time * 4) * 0.02; // Slight movement
+        break;
       default:
-        // Normal eyes with subtle breathing
         eyeScaleY *= 1 + Math.sin(time * 1.5) * 0.05;
     }
 
@@ -191,16 +242,22 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
     const eyeRotationX = mousePosition.y * 0.25;
     const eyeRotationY = mousePosition.x * 0.4;
 
-    leftEyeRef.current.rotation.x = eyeRotationX + eyeRotation;
-    leftEyeRef.current.rotation.y = eyeRotationY + 0.002;
-    rightEyeRef.current.rotation.x = eyeRotationX - eyeRotation;
-    rightEyeRef.current.rotation.y = eyeRotationY + 0.002;
+    // When user speaks, eyes are more focused (less movement)
+    const eyeMovementDamping = isUserSpeaking ? 0.5 : 1;
 
-    // Subtle eye movement when "looking around"
-    if (emotionState.current === "curious") {
-      const lookAround = Math.sin(time * 3) * 0.05;
-      leftEyeRef.current.rotation.y += lookAround;
-      rightEyeRef.current.rotation.y += lookAround;
+    leftEyeRef.current.rotation.x = eyeRotationX * eyeMovementDamping + eyeRotation;
+    leftEyeRef.current.rotation.y = eyeRotationY * eyeMovementDamping + 0.002;
+    rightEyeRef.current.rotation.x = eyeRotationX * eyeMovementDamping - eyeRotation;
+    rightEyeRef.current.rotation.y = eyeRotationY * eyeMovementDamping + 0.002;
+
+    // Bot speaking - subtle eye pulse
+    if (isBotSpeaking) {
+      const speakPulse = Math.sin(time * 6) * 0.03;
+      leftEyeMeshRef.current.scale.x = 1 + speakPulse;
+      rightEyeMeshRef.current.scale.x = 1 + speakPulse;
+    } else {
+      leftEyeMeshRef.current.scale.x = 1;
+      rightEyeMeshRef.current.scale.x = 1;
     }
 
     // Scale on press - "surprised" reaction
@@ -209,7 +266,6 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
     leftEyeRef.current.scale.setScalar(currentScale.current);
     rightEyeRef.current.scale.setScalar(currentScale.current);
 
-    // When pressed, eyes go wide
     if (isPressed) {
       leftEyeMeshRef.current.scale.y = 1.2;
       rightEyeMeshRef.current.scale.y = 1.2;
@@ -249,26 +305,22 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
 
   return (
     <>
-      {/* Left Eye */}
       <group ref={leftEyeRef}>
         <mesh ref={leftEyeMeshRef} position={[-0.35, 0.1, 1.42]}>
           <extrudeGeometry args={[eyeShape, extrudeSettings]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
-        {/* Subtle glow behind eye */}
         <mesh position={[-0.35, 0.1, 1.38]}>
           <planeGeometry args={[0.25, 0.5]} />
           <meshBasicMaterial color="#ffffff" transparent opacity={0.3} blending={THREE.AdditiveBlending} />
         </mesh>
       </group>
 
-      {/* Right Eye */}
       <group ref={rightEyeRef}>
         <mesh ref={rightEyeMeshRef} position={[0.35, 0.1, 1.42]}>
           <extrudeGeometry args={[eyeShape, extrudeSettings]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
-        {/* Subtle glow behind eye */}
         <mesh position={[0.35, 0.1, 1.38]}>
           <planeGeometry args={[0.25, 0.5]} />
           <meshBasicMaterial color="#ffffff" transparent opacity={0.3} blending={THREE.AdditiveBlending} />
@@ -278,8 +330,8 @@ const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
   );
 };
 
-// Outer particle cloud
-const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { count: number }) => {
+// Outer particle cloud with wave effect
+const ParticleCloud = ({ count, mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: SphereProps & { count: number }) => {
   const meshRef = useRef<THREE.Points>(null);
   const originalPositions = useRef<Float32Array | null>(null);
   const targetRotation = useRef({ x: 0, y: 0 });
@@ -299,7 +351,6 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = radius * Math.cos(phi);
 
-      // Mixed teal/blue/pink color palette
       const colorChoice = Math.random();
       if (colorChoice < 0.4) {
         colors[i * 3] = 0.0 + Math.random() * 0.2;
@@ -332,7 +383,11 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
 
     meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.05;
     meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.05;
-    meshRef.current.rotation.y += 0.002;
+    
+    // Faster rotation when user speaks
+    const baseRotation = 0.002;
+    const userSpeakingRotation = isUserSpeaking ? 0.012 : 0;
+    meshRef.current.rotation.y += baseRotation + userSpeakingRotation;
 
     const targetScale = isPressed ? 1.1 : 1;
     currentScale.current += (targetScale - currentScale.current) * 0.1;
@@ -342,7 +397,10 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
     const positionAttribute = geometry.attributes.position;
     const positionsArray = positionAttribute.array as Float32Array;
 
-    const noiseIntensity = isPressed ? 0.02 : 0.01;
+    // Noise intensity based on state
+    const baseNoise = 0.01;
+    const speakingNoise = isBotSpeaking ? 0.04 : 0;
+    const noiseIntensity = baseNoise + speakingNoise + (isPressed ? 0.01 : 0);
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
@@ -350,9 +408,25 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
       const originalY = originalPositions.current[i3 + 1];
       const originalZ = originalPositions.current[i3 + 2];
 
-      const noiseX = Math.sin(time * 0.3 + i * 0.03) * noiseIntensity;
-      const noiseY = Math.cos(time * 0.25 + i * 0.04) * noiseIntensity;
-      const noiseZ = Math.sin(time * 0.2 + i * 0.05) * noiseIntensity;
+      // Base noise
+      let noiseX = Math.sin(time * 0.3 + i * 0.03) * noiseIntensity;
+      let noiseY = Math.cos(time * 0.25 + i * 0.04) * noiseIntensity;
+      let noiseZ = Math.sin(time * 0.2 + i * 0.05) * noiseIntensity;
+
+      // Wave effect when bot speaks - particles ripple outward
+      if (isBotSpeaking) {
+        const dist = Math.sqrt(originalX * originalX + originalY * originalY + originalZ * originalZ);
+        const wavePhase = dist * 3 - time * 8;
+        const waveAmplitude = Math.sin(wavePhase) * 0.06;
+        
+        const nx = originalX / dist;
+        const ny = originalY / dist;
+        const nz = originalZ / dist;
+        
+        noiseX += nx * waveAmplitude;
+        noiseY += ny * waveAmplitude;
+        noiseZ += nz * waveAmplitude;
+      }
 
       positionsArray[i3] = originalX + noiseX;
       positionsArray[i3 + 1] = originalY + noiseY;
@@ -384,9 +458,15 @@ const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { coun
 
 interface InteractiveParticleSphereProps {
   size?: "small" | "normal" | "large";
+  isUserSpeaking?: boolean;
+  isBotSpeaking?: boolean;
 }
 
-const InteractiveParticleSphere = ({ size = "normal" }: InteractiveParticleSphereProps) => {
+const InteractiveParticleSphere = ({ 
+  size = "normal", 
+  isUserSpeaking = false, 
+  isBotSpeaking = false 
+}: InteractiveParticleSphereProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isPressed, setIsPressed] = useState(false);
@@ -434,16 +514,17 @@ const InteractiveParticleSphere = ({ size = "normal" }: InteractiveParticleSpher
     };
   }, []);
 
+  // Dynamic glow based on speaking state
+  const glowIntensity = isBotSpeaking ? 1.4 : isUserSpeaking ? 1.2 : 1.15;
+
   return (
     <div ref={containerRef} className={`${sizeClasses[size]} cursor-pointer relative`}>
-      {/* Ambient glow - teal/blue/coral mix */}
+      {/* Ambient glow - intensifies when speaking */}
       <div
-        className="absolute inset-0 rounded-full"
+        className="absolute inset-0 rounded-full transition-transform duration-300"
         style={{
-          background:
-            "radial-gradient(circle, rgba(0, 200, 180, 0.3) 0%, rgba(50, 120, 220, 0.2) 40%, rgba(255, 100, 100, 0.1) 60%, transparent 75%)",
-          transform: isPressed ? "scale(1.3)" : "scale(1.15)",
-          transition: "transform 0.3s ease-out",
+          background: `radial-gradient(circle, rgba(0, 200, 180, ${isBotSpeaking ? 0.5 : 0.3}) 0%, rgba(50, 120, 220, ${isBotSpeaking ? 0.35 : 0.2}) 40%, rgba(255, 100, 100, ${isBotSpeaking ? 0.2 : 0.1}) 60%, transparent 75%)`,
+          transform: `scale(${isPressed ? 1.3 : glowIntensity})`,
           filter: "blur(25px)",
         }}
       />
@@ -453,9 +534,25 @@ const InteractiveParticleSphere = ({ size = "normal" }: InteractiveParticleSpher
         style={{ background: "transparent" }}
         gl={{ alpha: true, antialias: true }}
       >
-        <ParticleCloud count={particleCounts[size]} mousePosition={mousePosition} isPressed={isPressed} />
-        <GradientSphere mousePosition={mousePosition} isPressed={isPressed} />
-        <Eyes mousePosition={mousePosition} isPressed={isPressed} />
+        <ParticleCloud 
+          count={particleCounts[size]} 
+          mousePosition={mousePosition} 
+          isPressed={isPressed}
+          isUserSpeaking={isUserSpeaking}
+          isBotSpeaking={isBotSpeaking}
+        />
+        <GradientSphere 
+          mousePosition={mousePosition} 
+          isPressed={isPressed}
+          isUserSpeaking={isUserSpeaking}
+          isBotSpeaking={isBotSpeaking}
+        />
+        <Eyes 
+          mousePosition={mousePosition} 
+          isPressed={isPressed}
+          isUserSpeaking={isUserSpeaking}
+          isBotSpeaking={isBotSpeaking}
+        />
       </Canvas>
     </div>
   );
