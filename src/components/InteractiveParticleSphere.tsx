@@ -1,15 +1,182 @@
 import { useRef, useMemo, useState, useEffect } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-interface ParticlesProps {
-  count: number;
+interface SphereProps {
   mousePosition: { x: number; y: number };
   isPressed: boolean;
 }
 
-const Particles = ({ count, mousePosition, isPressed }: ParticlesProps) => {
-  const mesh = useRef<THREE.Points>(null);
+// Main glowing sphere body
+const GlowingSphere = ({ mousePosition, isPressed }: SphereProps) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const targetRotation = useRef({ x: 0, y: 0 });
+  const currentScale = useRef(1);
+
+  useFrame(() => {
+    if (!meshRef.current) return;
+
+    // Follow mouse smoothly
+    targetRotation.current.x = mousePosition.y * 0.3;
+    targetRotation.current.y = mousePosition.x * 0.5;
+
+    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.08;
+    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.08;
+
+    // Zoom on press
+    const targetScale = isPressed ? 1.12 : 1;
+    currentScale.current += (targetScale - currentScale.current) * 0.12;
+    meshRef.current.scale.setScalar(currentScale.current);
+  });
+
+  return (
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[1.5, 64, 64]} />
+      <meshBasicMaterial
+        color="#0a1628"
+        transparent
+        opacity={0.95}
+      />
+    </mesh>
+  );
+};
+
+// Inner core glow
+const InnerGlow = ({ mousePosition, isPressed }: SphereProps) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const targetRotation = useRef({ x: 0, y: 0 });
+  const currentScale = useRef(1);
+
+  useFrame((state) => {
+    if (!meshRef.current) return;
+
+    const time = state.clock.elapsedTime;
+
+    targetRotation.current.x = mousePosition.y * 0.3;
+    targetRotation.current.y = mousePosition.x * 0.5;
+
+    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.08;
+    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.08;
+
+    const targetScale = isPressed ? 1.12 : 1;
+    currentScale.current += (targetScale - currentScale.current) * 0.12;
+    
+    // Breathing effect
+    const breathe = 1 + Math.sin(time * 1.5) * 0.03;
+    meshRef.current.scale.setScalar(currentScale.current * breathe);
+  });
+
+  return (
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[1.35, 64, 64]} />
+      <meshBasicMaterial
+        color="#1e3a5f"
+        transparent
+        opacity={0.6}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
+  );
+};
+
+// Eyes that follow the mouse
+const Eyes = ({ mousePosition, isPressed }: SphereProps) => {
+  const leftEyeRef = useRef<THREE.Group>(null);
+  const rightEyeRef = useRef<THREE.Group>(null);
+  const currentScale = useRef(1);
+
+  useFrame(() => {
+    if (!leftEyeRef.current || !rightEyeRef.current) return;
+
+    // Eyes follow mouse by rotating the entire eye group
+    const eyeRotationX = mousePosition.y * 0.4;
+    const eyeRotationY = mousePosition.x * 0.6;
+
+    leftEyeRef.current.rotation.x = eyeRotationX;
+    leftEyeRef.current.rotation.y = eyeRotationY;
+    rightEyeRef.current.rotation.x = eyeRotationX;
+    rightEyeRef.current.rotation.y = eyeRotationY;
+
+    // Scale on press
+    const targetScale = isPressed ? 1.12 : 1;
+    currentScale.current += (targetScale - currentScale.current) * 0.12;
+    leftEyeRef.current.scale.setScalar(currentScale.current);
+    rightEyeRef.current.scale.setScalar(currentScale.current);
+  });
+
+  return (
+    <>
+      {/* Left Eye */}
+      <group ref={leftEyeRef}>
+        <mesh position={[-0.45, 0.2, 1.35]}>
+          {/* Eye white/glow */}
+          <sphereGeometry args={[0.22, 32, 32]} />
+          <meshBasicMaterial
+            color="#4fc3f7"
+            transparent
+            opacity={0.9}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+        {/* Pupil */}
+        <mesh position={[-0.45, 0.2, 1.5]}>
+          <sphereGeometry args={[0.1, 32, 32]} />
+          <meshBasicMaterial
+            color="#ffffff"
+            transparent
+            opacity={1}
+          />
+        </mesh>
+        {/* Eye inner glow */}
+        <mesh position={[-0.45, 0.2, 1.32]}>
+          <sphereGeometry args={[0.28, 32, 32]} />
+          <meshBasicMaterial
+            color="#29b6f6"
+            transparent
+            opacity={0.4}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      </group>
+
+      {/* Right Eye */}
+      <group ref={rightEyeRef}>
+        <mesh position={[0.45, 0.2, 1.35]}>
+          <sphereGeometry args={[0.22, 32, 32]} />
+          <meshBasicMaterial
+            color="#4fc3f7"
+            transparent
+            opacity={0.9}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+        {/* Pupil */}
+        <mesh position={[0.45, 0.2, 1.5]}>
+          <sphereGeometry args={[0.1, 32, 32]} />
+          <meshBasicMaterial
+            color="#ffffff"
+            transparent
+            opacity={1}
+          />
+        </mesh>
+        {/* Eye inner glow */}
+        <mesh position={[0.45, 0.2, 1.32]}>
+          <sphereGeometry args={[0.28, 32, 32]} />
+          <meshBasicMaterial
+            color="#29b6f6"
+            transparent
+            opacity={0.4}
+            blending={THREE.AdditiveBlending}
+          />
+        </mesh>
+      </group>
+    </>
+  );
+};
+
+// Outer particle cloud
+const ParticleCloud = ({ count, mousePosition, isPressed }: SphereProps & { count: number }) => {
+  const meshRef = useRef<THREE.Points>(null);
   const originalPositions = useRef<Float32Array | null>(null);
   const targetRotation = useRef({ x: 0, y: 0 });
   const currentScale = useRef(1);
@@ -22,19 +189,18 @@ const Particles = ({ count, mousePosition, isPressed }: ParticlesProps) => {
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const radius = 1.8 + (Math.random() - 0.5) * 0.15;
+      const radius = 1.6 + Math.random() * 0.5;
 
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = radius * Math.cos(phi);
 
-      // Blue-white gradient colors
-      const blueIntensity = 0.6 + Math.random() * 0.4;
-      colors[i * 3] = 0.4 + Math.random() * 0.3; // R
-      colors[i * 3 + 1] = 0.6 + Math.random() * 0.3; // G
-      colors[i * 3 + 2] = blueIntensity; // B - more blue
+      // Blue color palette
+      colors[i * 3] = 0.2 + Math.random() * 0.3;
+      colors[i * 3 + 1] = 0.5 + Math.random() * 0.4;
+      colors[i * 3 + 2] = 0.8 + Math.random() * 0.2;
 
-      sizes[i] = Math.random() * 0.02 + 0.01;
+      sizes[i] = Math.random() * 0.015 + 0.008;
     }
 
     originalPositions.current = positions.slice();
@@ -42,31 +208,26 @@ const Particles = ({ count, mousePosition, isPressed }: ParticlesProps) => {
   }, [count]);
 
   useFrame((state) => {
-    if (!mesh.current || !originalPositions.current) return;
+    if (!meshRef.current || !originalPositions.current) return;
 
     const time = state.clock.elapsedTime;
-    
-    // Follow mouse - smooth interpolation
-    targetRotation.current.x = mousePosition.y * 0.5;
-    targetRotation.current.y = mousePosition.x * 0.8;
-    
-    mesh.current.rotation.x += (targetRotation.current.x - mesh.current.rotation.x) * 0.05;
-    mesh.current.rotation.y += (targetRotation.current.y - mesh.current.rotation.y) * 0.05;
-    
-    // Subtle continuous rotation
-    mesh.current.rotation.y += 0.002;
 
-    // Zoom effect on press
-    const targetScale = isPressed ? 1.15 : 1;
-    currentScale.current += (targetScale - currentScale.current) * 0.1;
-    mesh.current.scale.setScalar(currentScale.current);
+    targetRotation.current.x = mousePosition.y * 0.3;
+    targetRotation.current.y = mousePosition.x * 0.5;
 
-    // Particle animation
-    const geometry = mesh.current.geometry;
+    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.06;
+    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.06;
+    meshRef.current.rotation.y += 0.001;
+
+    const targetScale = isPressed ? 1.12 : 1;
+    currentScale.current += (targetScale - currentScale.current) * 0.12;
+    meshRef.current.scale.setScalar(currentScale.current);
+
+    const geometry = meshRef.current.geometry;
     const positionAttribute = geometry.attributes.position;
     const positionsArray = positionAttribute.array as Float32Array;
 
-    const noiseIntensity = isPressed ? 0.03 : 0.015;
+    const noiseIntensity = isPressed ? 0.025 : 0.012;
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
@@ -74,22 +235,20 @@ const Particles = ({ count, mousePosition, isPressed }: ParticlesProps) => {
       const originalY = originalPositions.current[i3 + 1];
       const originalZ = originalPositions.current[i3 + 2];
 
-      const noiseX = Math.sin(time * 0.5 + i * 0.05) * noiseIntensity;
-      const noiseY = Math.cos(time * 0.4 + i * 0.06) * noiseIntensity;
-      const noiseZ = Math.sin(time * 0.3 + i * 0.07) * noiseIntensity;
+      const noiseX = Math.sin(time * 0.4 + i * 0.04) * noiseIntensity;
+      const noiseY = Math.cos(time * 0.35 + i * 0.05) * noiseIntensity;
+      const noiseZ = Math.sin(time * 0.3 + i * 0.06) * noiseIntensity;
 
-      const breathe = 1 + Math.sin(time * 0.8) * 0.02;
-
-      positionsArray[i3] = originalX * breathe + noiseX;
-      positionsArray[i3 + 1] = originalY * breathe + noiseY;
-      positionsArray[i3 + 2] = originalZ * breathe + noiseZ;
+      positionsArray[i3] = originalX + noiseX;
+      positionsArray[i3 + 1] = originalY + noiseY;
+      positionsArray[i3 + 2] = originalZ + noiseZ;
     }
 
     positionAttribute.needsUpdate = true;
   });
 
   return (
-    <points ref={mesh}>
+    <points ref={meshRef}>
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
@@ -111,10 +270,10 @@ const Particles = ({ count, mousePosition, isPressed }: ParticlesProps) => {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.025}
+        size={0.02}
         vertexColors
         transparent
-        opacity={0.9}
+        opacity={0.7}
         sizeAttenuation
         blending={THREE.AdditiveBlending}
         depthWrite={false}
@@ -123,133 +282,41 @@ const Particles = ({ count, mousePosition, isPressed }: ParticlesProps) => {
   );
 };
 
-// Inner glow core
-const GlowCore = ({ mousePosition, isPressed }: { mousePosition: { x: number; y: number }; isPressed: boolean }) => {
-  const mesh = useRef<THREE.Mesh>(null);
+// Outer glow ring
+const OuterGlow = ({ mousePosition, isPressed }: SphereProps) => {
+  const meshRef = useRef<THREE.Mesh>(null);
   const targetRotation = useRef({ x: 0, y: 0 });
   const currentScale = useRef(1);
-
-  useFrame(() => {
-    if (!mesh.current) return;
-
-    targetRotation.current.x = mousePosition.y * 0.5;
-    targetRotation.current.y = mousePosition.x * 0.8;
-    
-    mesh.current.rotation.x += (targetRotation.current.x - mesh.current.rotation.x) * 0.05;
-    mesh.current.rotation.y += (targetRotation.current.y - mesh.current.rotation.y) * 0.05;
-    mesh.current.rotation.y += 0.002;
-
-    const targetScale = isPressed ? 1.15 : 1;
-    currentScale.current += (targetScale - currentScale.current) * 0.1;
-    mesh.current.scale.setScalar(currentScale.current);
-  });
-
-  return (
-    <mesh ref={mesh}>
-      <sphereGeometry args={[1.4, 32, 32]} />
-      <meshBasicMaterial
-        color="#1a4a8a"
-        transparent
-        opacity={0.15}
-        blending={THREE.AdditiveBlending}
-      />
-    </mesh>
-  );
-};
-
-// Outer ring particles
-const OuterRing = ({ count, mousePosition, isPressed }: ParticlesProps) => {
-  const mesh = useRef<THREE.Points>(null);
-  const originalPositions = useRef<Float32Array | null>(null);
-  const targetRotation = useRef({ x: 0, y: 0 });
-  const currentScale = useRef(1);
-
-  const [positions, colors] = useMemo(() => {
-    const positions = new Float32Array(count * 3);
-    const colors = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const radius = 2.0 + Math.random() * 0.3;
-
-      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-      positions[i * 3 + 2] = radius * Math.cos(phi);
-
-      colors[i * 3] = 0.3 + Math.random() * 0.2;
-      colors[i * 3 + 1] = 0.5 + Math.random() * 0.3;
-      colors[i * 3 + 2] = 0.8 + Math.random() * 0.2;
-    }
-
-    originalPositions.current = positions.slice();
-    return [positions, colors];
-  }, [count]);
 
   useFrame((state) => {
-    if (!mesh.current || !originalPositions.current) return;
+    if (!meshRef.current) return;
 
     const time = state.clock.elapsedTime;
 
-    targetRotation.current.x = mousePosition.y * 0.5;
-    targetRotation.current.y = mousePosition.x * 0.8;
-    
-    mesh.current.rotation.x += (targetRotation.current.x - mesh.current.rotation.x) * 0.04;
-    mesh.current.rotation.y += (targetRotation.current.y - mesh.current.rotation.y) * 0.04;
-    mesh.current.rotation.y += 0.003;
+    targetRotation.current.x = mousePosition.y * 0.3;
+    targetRotation.current.y = mousePosition.x * 0.5;
+
+    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.06;
+    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.06;
 
     const targetScale = isPressed ? 1.15 : 1;
     currentScale.current += (targetScale - currentScale.current) * 0.1;
-    mesh.current.scale.setScalar(currentScale.current);
-
-    const geometry = mesh.current.geometry;
-    const positionAttribute = geometry.attributes.position;
-    const positionsArray = positionAttribute.array as Float32Array;
-
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      const originalX = originalPositions.current[i3];
-      const originalY = originalPositions.current[i3 + 1];
-      const originalZ = originalPositions.current[i3 + 2];
-
-      const noiseX = Math.sin(time * 0.4 + i * 0.03) * 0.02;
-      const noiseY = Math.cos(time * 0.35 + i * 0.04) * 0.02;
-      const noiseZ = Math.sin(time * 0.3 + i * 0.05) * 0.02;
-
-      positionsArray[i3] = originalX + noiseX;
-      positionsArray[i3 + 1] = originalY + noiseY;
-      positionsArray[i3 + 2] = originalZ + noiseZ;
-    }
-
-    positionAttribute.needsUpdate = true;
+    
+    const pulse = 1 + Math.sin(time * 2) * 0.02;
+    meshRef.current.scale.setScalar(currentScale.current * pulse);
   });
 
   return (
-    <points ref={mesh}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          count={count}
-          array={colors}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial
-        size={0.018}
-        vertexColors
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[1.8, 32, 32]} />
+      <meshBasicMaterial
+        color="#1565c0"
         transparent
-        opacity={0.6}
-        sizeAttenuation
+        opacity={0.15}
         blending={THREE.AdditiveBlending}
-        depthWrite={false}
+        side={THREE.BackSide}
       />
-    </points>
+    </mesh>
   );
 };
 
@@ -269,24 +336,26 @@ const InteractiveParticleSphere = ({ size = "normal" }: InteractiveParticleSpher
   };
 
   const particleCounts = {
-    small: { main: 3000, outer: 1000 },
-    normal: { main: 4500, outer: 1500 },
-    large: { main: 6000, outer: 2000 },
+    small: 2000,
+    normal: 3000,
+    large: 4000,
   };
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current) return;
-      
+
       const rect = containerRef.current.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
-      
-      // Normalize mouse position relative to container center
+
       const x = (e.clientX - centerX) / (rect.width / 2);
       const y = (e.clientY - centerY) / (rect.height / 2);
-      
-      setMousePosition({ x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) });
+
+      setMousePosition({
+        x: Math.max(-1, Math.min(1, x)),
+        y: Math.max(-1, Math.min(1, y)),
+      });
     };
 
     const handleMouseDown = () => setIsPressed(true);
@@ -308,24 +377,27 @@ const InteractiveParticleSphere = ({ size = "normal" }: InteractiveParticleSpher
       ref={containerRef}
       className={`${sizeClasses[size]} cursor-pointer relative`}
     >
-      {/* Blue glow background */}
-      <div 
-        className="absolute inset-0 rounded-full opacity-30 blur-3xl"
+      {/* Blue ambient glow */}
+      <div
+        className="absolute inset-0 rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(59, 130, 246, 0.5) 0%, rgba(30, 64, 175, 0.3) 50%, transparent 70%)",
-          transform: isPressed ? "scale(1.2)" : "scale(1)",
+          background: "radial-gradient(circle, rgba(33, 150, 243, 0.4) 0%, rgba(21, 101, 192, 0.2) 40%, transparent 70%)",
+          transform: isPressed ? "scale(1.25)" : "scale(1.1)",
           transition: "transform 0.3s ease-out",
+          filter: "blur(20px)",
         }}
       />
-      
+
       <Canvas
-        camera={{ position: [0, 0, 5], fov: 45 }}
+        camera={{ position: [0, 0, 4.5], fov: 45 }}
         style={{ background: "transparent" }}
         gl={{ alpha: true, antialias: true }}
       >
-        <GlowCore mousePosition={mousePosition} isPressed={isPressed} />
-        <Particles count={particleCounts[size].main} mousePosition={mousePosition} isPressed={isPressed} />
-        <OuterRing count={particleCounts[size].outer} mousePosition={mousePosition} isPressed={isPressed} />
+        <OuterGlow mousePosition={mousePosition} isPressed={isPressed} />
+        <ParticleCloud count={particleCounts[size]} mousePosition={mousePosition} isPressed={isPressed} />
+        <GlowingSphere mousePosition={mousePosition} isPressed={isPressed} />
+        <InnerGlow mousePosition={mousePosition} isPressed={isPressed} />
+        <Eyes mousePosition={mousePosition} isPressed={isPressed} />
       </Canvas>
     </div>
   );
