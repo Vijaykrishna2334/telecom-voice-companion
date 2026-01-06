@@ -27,12 +27,12 @@ const Particles = ({ count, isActive, isSpeaking }: ParticlesProps) => {
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = radius * Math.cos(phi);
 
-      // White/light blue colors
-      colors[i * 3] = 0.8 + Math.random() * 0.2;
+      // White/light colors
+      colors[i * 3] = 0.9 + Math.random() * 0.1;
       colors[i * 3 + 1] = 0.9 + Math.random() * 0.1;
       colors[i * 3 + 2] = 1;
 
-      sizes[i] = Math.random() * 0.03 + 0.01;
+      sizes[i] = Math.random() * 0.04 + 0.015;
     }
 
     originalPositions.current = positions.slice();
@@ -48,25 +48,20 @@ const Particles = ({ count, isActive, isSpeaking }: ParticlesProps) => {
     const positions = positionAttribute.array as Float32Array;
 
     // Rotation speed based on state
-    const baseRotationSpeed = isActive ? 0.003 : 0.001;
-    const speakingBoost = isSpeaking ? 0.005 : 0;
+    const baseRotationSpeed = isActive ? 0.004 : 0.002;
+    const speakingBoost = isSpeaking ? 0.008 : 0;
     mesh.current.rotation.y += baseRotationSpeed + speakingBoost;
-    mesh.current.rotation.x += (baseRotationSpeed + speakingBoost) * 0.3;
+    mesh.current.rotation.x += (baseRotationSpeed + speakingBoost) * 0.2;
 
     // Particle movement intensity
-    const noiseIntensity = isSpeaking ? 0.15 : isActive ? 0.05 : 0.02;
-    const pulseIntensity = isSpeaking ? 0.2 : 0.05;
+    const noiseIntensity = isSpeaking ? 0.2 : isActive ? 0.06 : 0.02;
+    const pulseIntensity = isSpeaking ? 0.25 : 0.05;
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
       const originalX = originalPositions.current[i3];
       const originalY = originalPositions.current[i3 + 1];
       const originalZ = originalPositions.current[i3 + 2];
-
-      // Calculate distance from center
-      const distance = Math.sqrt(
-        originalX * originalX + originalY * originalY + originalZ * originalZ
-      );
 
       // Noise-based displacement
       const noiseX =
@@ -115,10 +110,10 @@ const Particles = ({ count, isActive, isSpeaking }: ParticlesProps) => {
         />
       </bufferGeometry>
       <pointsMaterial
-        size={0.025}
+        size={0.035}
         vertexColors
         transparent
-        opacity={0.9}
+        opacity={0.95}
         sizeAttenuation
         blending={THREE.AdditiveBlending}
         depthWrite={false}
@@ -131,23 +126,30 @@ interface ParticleSphereProps {
   isActive: boolean;
   isSpeaking: boolean;
   onClick?: () => void;
+  size?: "normal" | "large";
 }
 
-const ParticleSphere = ({ isActive, isSpeaking, onClick }: ParticleSphereProps) => {
+const ParticleSphere = ({ isActive, isSpeaking, onClick, size = "normal" }: ParticleSphereProps) => {
+  const sizeClasses = size === "large" 
+    ? "w-[400px] h-[400px] md:w-[500px] md:h-[500px] lg:w-[600px] lg:h-[600px]"
+    : "w-72 h-72 md:w-80 md:h-80";
+
+  const particleCount = size === "large" ? 8000 : 5000;
+
   return (
     <div
-      className="w-72 h-72 md:w-80 md:h-80 rounded-[2.5rem] overflow-hidden cursor-pointer"
+      className={`${sizeClasses} cursor-pointer`}
       onClick={onClick}
       style={{
-        background: "linear-gradient(180deg, hsl(222 47% 8%) 0%, hsl(222 47% 4%) 100%)",
+        background: "transparent",
       }}
     >
       <Canvas
         camera={{ position: [0, 0, 6], fov: 45 }}
         style={{ background: "transparent" }}
+        gl={{ alpha: true, antialias: true }}
       >
-        <ambientLight intensity={0.5} />
-        <Particles count={5000} isActive={isActive} isSpeaking={isSpeaking} />
+        <Particles count={particleCount} isActive={isActive} isSpeaking={isSpeaking} />
       </Canvas>
     </div>
   );
