@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Headphones, Mail, Lock, User, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import AuthParticleSphere from "@/components/AuthParticleSphere";
+import InteractiveParticleSphere from "@/components/InteractiveParticleSphere";
 
 const AuthPage = () => {
   const [searchParams] = useSearchParams();
@@ -160,13 +160,13 @@ const AuthPage = () => {
 
       {/* Right Panel - Visual */}
       <div className="hidden lg:flex flex-1 items-center justify-center bg-black relative overflow-hidden">
-        {/* 3D Particle Sphere - Realistic Recreation */}
+        {/* 3D Particle Sphere - Interactive with mouse tracking */}
         <Suspense fallback={
-          <div className="w-[500px] h-[500px] flex items-center justify-center">
-            <div className="w-24 h-24 rounded-full border border-white/10 border-t-white/40 animate-spin" />
+          <div className="w-96 h-96 flex items-center justify-center">
+            <div className="w-24 h-24 rounded-full border border-blue-500/20 border-t-blue-500/60 animate-spin" />
           </div>
         }>
-          <AuthParticleSphere />
+          <InteractiveParticleSphere size="large" />
         </Suspense>
 
         {/* Text */}
