@@ -65,6 +65,7 @@ const Particles = ({ count, isActive, isSpeaking }: ParticlesProps) => {
     const geometry = mesh.current.geometry;
     const positionAttribute = geometry.attributes.position;
     const positionsArray = positionAttribute.array as Float32Array;
+    const sizesArray = geometry.attributes.size.array as Float32Array;
 
     // Rotation speed based on state
     const baseRotationSpeed = isActive ? 0.006 : 0.003;
@@ -72,9 +73,21 @@ const Particles = ({ count, isActive, isSpeaking }: ParticlesProps) => {
     mesh.current.rotation.y += baseRotationSpeed + speakingBoost;
     mesh.current.rotation.x += (baseRotationSpeed + speakingBoost) * 0.15;
 
+    // SPEECH SIMULATION: Create rhythmic expansion waves like speaking
+    // Multiple overlapping frequencies simulate word cadence
+    const speechWave1 = Math.sin(time * 8) * 0.5 + 0.5; // Fast syllables
+    const speechWave2 = Math.sin(time * 12 + 1.2) * 0.4 + 0.5; // Quick variations
+    const speechWave3 = Math.sin(time * 5 + 2.5) * 0.6 + 0.5; // Word rhythm
+    const speechWave4 = Math.sin(time * 3) * 0.3 + 0.7; // Sentence rhythm
+    const breathingWave = Math.sin(time * 1.5) * 0.15 + 1; // Natural breathing
+    
+    // Combine waves for organic speech-like expansion
+    const speechIntensity = isSpeaking 
+      ? (speechWave1 * 0.3 + speechWave2 * 0.25 + speechWave3 * 0.3 + speechWave4 * 0.15) * breathingWave
+      : 0.3;
+
     // Particle movement intensity
-    const noiseIntensity = isSpeaking ? 0.25 : isActive ? 0.08 : 0.03;
-    const pulseIntensity = isSpeaking ? 0.3 : 0.08;
+    const noiseIntensity = isSpeaking ? 0.35 : isActive ? 0.08 : 0.03;
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
@@ -82,27 +95,44 @@ const Particles = ({ count, isActive, isSpeaking }: ParticlesProps) => {
       const originalY = originalPositions.current[i3 + 1];
       const originalZ = originalPositions.current[i3 + 2];
 
-      // Fire-like turbulent motion
+      // Calculate distance from center for wave propagation
+      const distFromCenter = Math.sqrt(originalX ** 2 + originalY ** 2 + originalZ ** 2);
+      
+      // Create outward wave propagation effect during speech
+      const waveDelay = distFromCenter * 0.5; // Particles further out react with delay
+      const localSpeechWave = isSpeaking
+        ? Math.sin(time * 10 - waveDelay) * 0.5 + 0.5
+        : 0;
+
+      // Dynamic scale based on speech waves
+      const baseScale = isSpeaking ? 1.15 : 1;
+      const speechExpansion = isSpeaking ? speechIntensity * 0.5 + localSpeechWave * 0.3 : 0;
+      const scale = baseScale + speechExpansion;
+
+      // Fire-like turbulent motion - more chaotic when speaking
+      const turbulenceSpeed = isSpeaking ? 6 : 3;
       const noiseX =
-        Math.sin(time * 3 + i * 0.1) * noiseIntensity +
-        Math.sin(time * 5 + i * 0.05) * noiseIntensity * 0.5;
+        Math.sin(time * turbulenceSpeed + i * 0.1) * noiseIntensity +
+        Math.sin(time * (turbulenceSpeed + 2) + i * 0.05) * noiseIntensity * 0.5;
       const noiseY =
-        Math.cos(time * 2.5 + i * 0.12) * noiseIntensity +
-        Math.cos(time * 4 + i * 0.08) * noiseIntensity * 0.6;
+        Math.cos(time * (turbulenceSpeed - 0.5) + i * 0.12) * noiseIntensity +
+        Math.cos(time * (turbulenceSpeed + 1) + i * 0.08) * noiseIntensity * 0.6;
       const noiseZ =
-        Math.sin(time * 2.8 + i * 0.15) * noiseIntensity +
-        Math.sin(time * 3.5 + i * 0.1) * noiseIntensity * 0.5;
+        Math.sin(time * (turbulenceSpeed - 0.2) + i * 0.15) * noiseIntensity +
+        Math.sin(time * (turbulenceSpeed + 0.5) + i * 0.1) * noiseIntensity * 0.5;
 
-      // Pulsing/breathing effect
-      const pulse = Math.sin(time * 4) * pulseIntensity;
-      const scale = 1 + pulse * (isSpeaking ? 1.2 : 0.4);
-
+      // Apply scaled position with noise
       positionsArray[i3] = originalX * scale + noiseX;
       positionsArray[i3 + 1] = originalY * scale + noiseY;
       positionsArray[i3 + 2] = originalZ * scale + noiseZ;
+
+      // Dynamic particle size during speech - particles "pop" with words
+      const baseSizeMultiplier = isSpeaking ? 1.3 + speechIntensity * 0.5 : 1;
+      sizesArray[i] = sizes[i] * baseSizeMultiplier;
     }
 
     positionAttribute.needsUpdate = true;
+    geometry.attributes.size.needsUpdate = true;
   });
 
   return (
@@ -397,23 +427,42 @@ const EnergyStreams = ({ isActive, isSpeaking }: { isActive: boolean; isSpeaking
 const GlowingCore = ({ isActive, isSpeaking }: { isActive: boolean; isSpeaking: boolean }) => {
   const coreRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
+  const outerGlowRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
     const time = state.clock.elapsedTime;
 
+    // Speech-like pulsing waves
+    const speechWave1 = Math.sin(time * 8) * 0.5 + 0.5;
+    const speechWave2 = Math.sin(time * 12 + 1.2) * 0.4 + 0.5;
+    const speechWave3 = Math.sin(time * 5 + 2.5) * 0.6 + 0.5;
+    const combinedSpeech = (speechWave1 + speechWave2 + speechWave3) / 3;
+
     if (coreRef.current) {
-      // Pulsing scale
-      const basePulse = isSpeaking ? 0.15 : isActive ? 0.08 : 0.03;
-      const pulse = 1 + Math.sin(time * (isSpeaking ? 6 : 3)) * basePulse;
+      // Dynamic pulsing that mimics speaking rhythm
+      const basePulse = isSpeaking ? 0.25 + combinedSpeech * 0.2 : isActive ? 0.08 : 0.03;
+      const pulse = 1 + Math.sin(time * (isSpeaking ? 8 : 3)) * basePulse;
       coreRef.current.scale.setScalar(pulse);
 
-      // Slow rotation
-      coreRef.current.rotation.y = time * 0.5;
+      // Faster rotation when speaking
+      coreRef.current.rotation.y = time * (isSpeaking ? 1.2 : 0.5);
+      coreRef.current.rotation.x = Math.sin(time * 2) * 0.1;
     }
 
     if (glowRef.current) {
-      const glowPulse = 1.2 + Math.sin(time * 4) * (isSpeaking ? 0.2 : 0.1);
+      // Inner glow expands with speech
+      const glowPulse = isSpeaking 
+        ? 1.3 + combinedSpeech * 0.4 
+        : 1.2 + Math.sin(time * 4) * 0.1;
       glowRef.current.scale.setScalar(glowPulse);
+    }
+
+    if (outerGlowRef.current) {
+      // Outer glow creates "speaking aura" effect
+      const outerPulse = isSpeaking
+        ? 1.6 + combinedSpeech * 0.5
+        : 1.4 + Math.sin(time * 2) * 0.05;
+      outerGlowRef.current.scale.setScalar(outerPulse);
     }
   });
 
@@ -425,10 +474,16 @@ const GlowingCore = ({ isActive, isSpeaking }: { isActive: boolean; isSpeaking: 
         <meshBasicMaterial color="#ff4400" transparent opacity={0.3} wireframe />
       </mesh>
 
-      {/* Outer glow */}
+      {/* Inner glow */}
       <mesh ref={glowRef}>
         <sphereGeometry args={[1.2, 24, 24]} />
-        <meshBasicMaterial color="#ff6600" transparent opacity={0.08} side={THREE.BackSide} />
+        <meshBasicMaterial color="#ff6600" transparent opacity={0.12} side={THREE.BackSide} />
+      </mesh>
+
+      {/* Outer speaking aura */}
+      <mesh ref={outerGlowRef}>
+        <sphereGeometry args={[1.8, 24, 24]} />
+        <meshBasicMaterial color="#ff8800" transparent opacity={0.06} side={THREE.BackSide} />
       </mesh>
     </group>
   );
