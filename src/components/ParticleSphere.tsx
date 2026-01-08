@@ -530,7 +530,7 @@ const ParticleSphere = ({ isActive, isSpeaking, onClick, size = "normal" }: Part
       />
 
       <Canvas 
-        camera={{ position: [0, 0, 7], fov: 45 }} 
+        camera={{ position: [0, 0, 9], fov: 50 }} 
         style={{ 
           background: "transparent",
           overflow: "visible",
