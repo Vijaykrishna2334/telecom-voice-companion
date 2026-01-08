@@ -510,21 +510,33 @@ const ParticleSphere = ({ isActive, isSpeaking, onClick, size = "normal" }: Part
       onClick={onClick}
       style={{
         background: "transparent",
+        overflow: "visible",
       }}
     >
-      {/* Fire glow backdrop */}
+      {/* Fire glow backdrop - expands beyond container */}
       <div
-        className="absolute inset-0 rounded-full transition-all duration-500"
+        className="absolute transition-all duration-500 pointer-events-none"
         style={{
+          top: "-50%",
+          left: "-50%",
+          width: "200%",
+          height: "200%",
           background: `radial-gradient(circle, rgba(255, 100, 0, ${
-            isSpeaking ? 0.4 : isActive ? 0.25 : 0.15
-          }) 0%, rgba(255, 60, 0, ${isSpeaking ? 0.25 : 0.1}) 40%, transparent 70%)`,
-          transform: `scale(${isSpeaking ? 1.3 : isActive ? 1.15 : 1.1})`,
-          filter: "blur(40px)",
+            isSpeaking ? 0.35 : isActive ? 0.2 : 0.1
+          }) 0%, rgba(255, 60, 0, ${isSpeaking ? 0.2 : 0.08}) 30%, transparent 60%)`,
+          transform: `scale(${isSpeaking ? 1.4 : isActive ? 1.2 : 1})`,
+          filter: "blur(60px)",
         }}
       />
 
-      <Canvas camera={{ position: [0, 0, 7], fov: 45 }} style={{ background: "transparent" }} gl={{ alpha: true, antialias: true }}>
+      <Canvas 
+        camera={{ position: [0, 0, 7], fov: 45 }} 
+        style={{ 
+          background: "transparent",
+          overflow: "visible",
+        }} 
+        gl={{ alpha: true, antialias: true }}
+      >
         <GlowingCore isActive={isActive} isSpeaking={isSpeaking} />
         <Particles count={particleCount} isActive={isActive} isSpeaking={isSpeaking} />
         <FireOrbitalRings isActive={isActive} isSpeaking={isSpeaking} />
