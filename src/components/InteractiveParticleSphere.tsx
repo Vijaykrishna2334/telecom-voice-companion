@@ -9,82 +9,108 @@ interface SphereProps {
   isBotSpeaking: boolean;
 }
 
-// JARVIS-style holographic core with energy glow
-const HolographicCore = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: SphereProps) => {
+// Iridescent gradient sphere using custom shader
+const GradientSphere = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: SphereProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
-  const glowRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const targetRotation = useRef({ x: 0, y: 0 });
   const currentScale = useRef(1);
-  const pulsePhase = useRef(0);
+  const waveIntensity = useRef(0);
 
   const shaderMaterial = useMemo(() => {
     return new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
-        pulseIntensity: { value: 0 },
-        isActive: { value: 0 },
+        mouseX: { value: 0 },
+        mouseY: { value: 0 },
+        waveIntensity: { value: 0 },
+        isBotSpeaking: { value: 0 },
       },
       vertexShader: `
+        uniform float time;
+        uniform float waveIntensity;
+        uniform float isBotSpeaking;
+        
         varying vec3 vNormal;
         varying vec3 vPosition;
         varying vec2 vUv;
         
         void main() {
           vNormal = normalize(normalMatrix * normal);
-          vPosition = position;
           vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          
+          vec3 pos = position;
+          
+          // Wave displacement when bot speaks
+          if (isBotSpeaking > 0.0) {
+            float wave1 = sin(pos.x * 3.0 + time * 4.0) * waveIntensity * 0.08;
+            float wave2 = sin(pos.y * 4.0 + time * 3.5) * waveIntensity * 0.06;
+            float wave3 = cos(pos.z * 2.5 + time * 5.0) * waveIntensity * 0.07;
+            float wave4 = sin(length(pos.xy) * 5.0 - time * 6.0) * waveIntensity * 0.05;
+            
+            pos += normal * (wave1 + wave2 + wave3 + wave4);
+          }
+          
+          vPosition = pos;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
         }
       `,
       fragmentShader: `
         uniform float time;
-        uniform float pulseIntensity;
-        uniform float isActive;
+        uniform float mouseX;
+        uniform float mouseY;
+        uniform float waveIntensity;
+        uniform float isBotSpeaking;
         
         varying vec3 vNormal;
         varying vec3 vPosition;
         varying vec2 vUv;
         
         void main() {
-          // JARVIS cyan/blue holographic colors
-          vec3 coreColor = vec3(0.0, 0.8, 1.0);
-          vec3 glowColor = vec3(0.2, 0.9, 1.0);
-          vec3 accentColor = vec3(0.0, 0.6, 0.8);
+          // Base gradient colors - teal to blue to pink
+          vec3 teal = vec3(0.0, 0.8, 0.7);
+          vec3 blue = vec3(0.2, 0.5, 1.0);
+          vec3 pink = vec3(0.9, 0.3, 0.5);
+          vec3 coral = vec3(1.0, 0.5, 0.4);
           
-          // Fresnel effect for holographic rim
-          float fresnel = pow(1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0))), 3.0);
+          // Create flowing gradient based on position and time
+          float timeSpeed = isBotSpeaking > 0.0 ? 0.8 : 0.3;
+          float angle = atan(vPosition.y, vPosition.x) + time * timeSpeed;
           
-          // Hexagonal grid pattern
-          float scale = 15.0;
-          vec2 uv = vUv * scale;
-          float hex = abs(sin(uv.x * 3.14159) * sin(uv.y * 3.14159));
-          hex = smoothstep(0.85, 0.95, hex);
+          // Mix colors based on angle and position
+          float t1 = sin(angle * 2.0 + time * 0.5) * 0.5 + 0.5;
+          float t2 = cos(angle * 1.5 - time * 0.3 + vPosition.z) * 0.5 + 0.5;
+          float t3 = sin(vPosition.z * 2.0 + time * 0.4) * 0.5 + 0.5;
           
-          // Scanning lines
-          float scanLine = sin(vPosition.y * 20.0 + time * 3.0) * 0.5 + 0.5;
-          scanLine = pow(scanLine, 4.0) * 0.3;
+          // Mouse influence on colors
+          float mouseInfluence = mouseX * 0.3;
           
-          // Pulse effect
-          float pulse = sin(time * 4.0 + pulseIntensity * 3.0) * 0.5 + 0.5;
-          pulse = 0.7 + pulse * 0.3 * (1.0 + isActive * 0.5);
+          vec3 color1 = mix(teal, blue, t1 + mouseInfluence);
+          vec3 color2 = mix(blue, pink, t2);
+          vec3 color3 = mix(pink, coral, t3);
           
-          // Combine effects
-          vec3 finalColor = coreColor * 0.3;
-          finalColor += fresnel * glowColor * 1.5;
-          finalColor += hex * accentColor * 0.4;
-          finalColor += scanLine * coreColor;
-          finalColor *= pulse;
+          vec3 finalColor = mix(color1, color2, t2);
+          finalColor = mix(finalColor, color3, t3 * 0.5);
           
-          // Alpha with holographic transparency
-          float alpha = 0.6 + fresnel * 0.4 + hex * 0.1;
-          alpha *= 0.85;
+          // Enhanced color shift when speaking
+          if (isBotSpeaking > 0.0) {
+            float speakPulse = sin(time * 8.0) * 0.5 + 0.5;
+            finalColor = mix(finalColor, finalColor * 1.3, speakPulse * waveIntensity * 0.3);
+          }
           
-          gl_FragColor = vec4(finalColor, alpha);
+          // Add rim lighting effect
+          float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+          rim = pow(rim, 2.0);
+          finalColor += rim * vec3(0.3, 0.5, 0.8) * 0.5;
+          
+          // Add subtle shine
+          float shine = pow(max(0.0, dot(vNormal, normalize(vec3(0.5, 0.5, 1.0)))), 8.0);
+          finalColor += shine * vec3(1.0) * 0.3;
+          
+          gl_FragColor = vec4(finalColor, 0.95);
         }
       `,
       transparent: true,
-      side: THREE.DoubleSide,
     });
   }, []);
 
@@ -93,322 +119,51 @@ const HolographicCore = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaki
 
     const time = state.clock.elapsedTime;
     materialRef.current.uniforms.time.value = time;
-    
-    // Pulse intensity based on speaking
-    const targetPulse = isBotSpeaking ? 1.5 : isUserSpeaking ? 0.8 : 0;
-    pulsePhase.current += (targetPulse - pulsePhase.current) * 0.1;
-    materialRef.current.uniforms.pulseIntensity.value = pulsePhase.current;
-    materialRef.current.uniforms.isActive.value = (isBotSpeaking || isUserSpeaking) ? 1 : 0;
+    materialRef.current.uniforms.mouseX.value = mousePosition.x;
+    materialRef.current.uniforms.mouseY.value = mousePosition.y;
+
+    // Wave intensity for bot speaking
+    const targetWave = isBotSpeaking ? 1 : 0;
+    waveIntensity.current += (targetWave - waveIntensity.current) * 0.1;
+    materialRef.current.uniforms.waveIntensity.value = waveIntensity.current;
+    materialRef.current.uniforms.isBotSpeaking.value = isBotSpeaking ? 1 : 0;
 
     // Follow mouse smoothly
-    targetRotation.current.x = mousePosition.y * 0.2;
-    targetRotation.current.y = mousePosition.x * 0.3;
+    targetRotation.current.x = mousePosition.y * 0.25;
+    targetRotation.current.y = mousePosition.x * 0.4;
 
-    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.04;
-    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.04;
+    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.06;
+    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.06;
 
-    // Base rotation
-    meshRef.current.rotation.y += 0.003;
+    // Rotation speed based on state
+    const baseRotation = 0.002;
+    const userSpeakingRotation = isUserSpeaking ? 0.015 : 0;
+    meshRef.current.rotation.y += baseRotation + userSpeakingRotation;
+    
+    if (isUserSpeaking) {
+      meshRef.current.rotation.x += Math.sin(time * 3) * 0.003;
+    }
 
-    // Scale on press or when active
-    const baseScale = isBotSpeaking ? 1.05 + Math.sin(time * 6) * 0.03 : 1;
-    const targetScale = isPressed ? 1.15 : baseScale;
+    // Zoom on press
+    const targetScale = isPressed ? 1.1 : 1;
     currentScale.current += (targetScale - currentScale.current) * 0.1;
     meshRef.current.scale.setScalar(currentScale.current);
-
-    // Glow mesh
-    if (glowRef.current) {
-      glowRef.current.scale.setScalar(currentScale.current * (1.1 + pulsePhase.current * 0.1));
-    }
   });
 
   return (
-    <group>
-      {/* Inner core */}
-      <mesh ref={meshRef}>
-        <icosahedronGeometry args={[1, 2]} />
-        <primitive object={shaderMaterial} ref={materialRef} attach="material" />
-      </mesh>
-      
-      {/* Outer glow */}
-      <mesh ref={glowRef}>
-        <sphereGeometry args={[1.15, 32, 32]} />
-        <meshBasicMaterial 
-          color="#00d4ff" 
-          transparent 
-          opacity={0.08} 
-          side={THREE.BackSide}
-        />
-      </mesh>
-    </group>
+    <mesh ref={meshRef}>
+      <sphereGeometry args={[1.5, 64, 64]} />
+      <primitive object={shaderMaterial} ref={materialRef} attach="material" />
+    </mesh>
   );
 };
 
-// Rotating orbital rings with energy particles - JARVIS style
-const OrbitalRings = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: SphereProps) => {
-  const ring1Ref = useRef<THREE.Group>(null);
-  const ring2Ref = useRef<THREE.Group>(null);
-  const ring3Ref = useRef<THREE.Group>(null);
-  const particles1Ref = useRef<THREE.Points>(null);
-  const particles2Ref = useRef<THREE.Points>(null);
-  const particles3Ref = useRef<THREE.Points>(null);
-
-  // Create ring particle positions
-  const createRingParticles = (radius: number, count: number) => {
-    const positions = new Float32Array(count * 3);
-    const speeds = new Float32Array(count);
-    
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      positions[i * 3] = Math.cos(angle) * radius;
-      positions[i * 3 + 1] = 0;
-      positions[i * 3 + 2] = Math.sin(angle) * radius;
-      speeds[i] = 0.5 + Math.random() * 1.5;
-    }
-    
-    return { positions, speeds };
-  };
-
-  const ring1Data = useMemo(() => createRingParticles(1.6, 80), []);
-  const ring2Data = useMemo(() => createRingParticles(1.85, 100), []);
-  const ring3Data = useMemo(() => createRingParticles(2.1, 120), []);
-
-  useFrame((state) => {
-    const time = state.clock.elapsedTime;
-    
-    // Speed multiplier based on state
-    const speedMultiplier = isBotSpeaking ? 2.5 : isUserSpeaking ? 1.8 : 1;
-    
-    // Rotate rings
-    if (ring1Ref.current) {
-      ring1Ref.current.rotation.x = 0.3 + mousePosition.y * 0.1;
-      ring1Ref.current.rotation.y = time * 0.5 * speedMultiplier;
-      ring1Ref.current.rotation.z = 0.1;
-    }
-    
-    if (ring2Ref.current) {
-      ring2Ref.current.rotation.x = -0.5 + mousePosition.y * 0.15;
-      ring2Ref.current.rotation.y = -time * 0.4 * speedMultiplier;
-      ring2Ref.current.rotation.z = 0.8;
-    }
-    
-    if (ring3Ref.current) {
-      ring3Ref.current.rotation.x = 0.7 + mousePosition.x * 0.1;
-      ring3Ref.current.rotation.y = time * 0.3 * speedMultiplier;
-      ring3Ref.current.rotation.z = -0.4;
-    }
-
-    // Animate particles along rings
-    const animateParticles = (
-      ref: React.RefObject<THREE.Points>, 
-      data: { positions: Float32Array; speeds: Float32Array },
-      radius: number,
-      baseSpeed: number
-    ) => {
-      if (!ref.current) return;
-      
-      const positions = ref.current.geometry.attributes.position.array as Float32Array;
-      const count = positions.length / 3;
-      
-      for (let i = 0; i < count; i++) {
-        const speed = data.speeds[i] * baseSpeed * speedMultiplier;
-        const angle = (i / count) * Math.PI * 2 + time * speed;
-        
-        // Add some wobble when speaking
-        const wobble = isBotSpeaking ? Math.sin(time * 8 + i) * 0.05 : 0;
-        const currentRadius = radius + wobble;
-        
-        positions[i * 3] = Math.cos(angle) * currentRadius;
-        positions[i * 3 + 2] = Math.sin(angle) * currentRadius;
-        
-        // Slight vertical oscillation
-        positions[i * 3 + 1] = Math.sin(angle * 3 + time * 2) * 0.08;
-      }
-      
-      ref.current.geometry.attributes.position.needsUpdate = true;
-    };
-
-    animateParticles(particles1Ref, ring1Data, 1.6, 0.3);
-    animateParticles(particles2Ref, ring2Data, 1.85, 0.25);
-    animateParticles(particles3Ref, ring3Data, 2.1, 0.2);
-  });
-
-  const ringMaterial = useMemo(() => (
-    <meshBasicMaterial 
-      color="#00d4ff" 
-      transparent 
-      opacity={0.15}
-      side={THREE.DoubleSide}
-    />
-  ), []);
-
-  const particleMaterial = useMemo(() => (
-    <pointsMaterial
-      size={0.04}
-      color="#00ffff"
-      transparent
-      opacity={0.9}
-      blending={THREE.AdditiveBlending}
-      depthWrite={false}
-    />
-  ), []);
-
-  return (
-    <group>
-      {/* Ring 1 */}
-      <group ref={ring1Ref}>
-        <mesh>
-          <torusGeometry args={[1.6, 0.008, 8, 100]} />
-          {ringMaterial}
-        </mesh>
-        <points ref={particles1Ref}>
-          <bufferGeometry>
-            <bufferAttribute 
-              attach="attributes-position" 
-              count={80} 
-              array={ring1Data.positions} 
-              itemSize={3} 
-            />
-          </bufferGeometry>
-          {particleMaterial}
-        </points>
-      </group>
-
-      {/* Ring 2 */}
-      <group ref={ring2Ref}>
-        <mesh>
-          <torusGeometry args={[1.85, 0.006, 8, 120]} />
-          {ringMaterial}
-        </mesh>
-        <points ref={particles2Ref}>
-          <bufferGeometry>
-            <bufferAttribute 
-              attach="attributes-position" 
-              count={100} 
-              array={ring2Data.positions} 
-              itemSize={3} 
-            />
-          </bufferGeometry>
-          {particleMaterial}
-        </points>
-      </group>
-
-      {/* Ring 3 */}
-      <group ref={ring3Ref}>
-        <mesh>
-          <torusGeometry args={[2.1, 0.004, 8, 140]} />
-          {ringMaterial}
-        </mesh>
-        <points ref={particles3Ref}>
-          <bufferGeometry>
-            <bufferAttribute 
-              attach="attributes-position" 
-              count={120} 
-              array={ring3Data.positions} 
-              itemSize={3} 
-            />
-          </bufferGeometry>
-          {particleMaterial}
-        </points>
-      </group>
-    </group>
-  );
-};
-
-// Energy streams flowing around the sphere
-const EnergyStreams = ({ isUserSpeaking, isBotSpeaking }: Pick<SphereProps, 'isUserSpeaking' | 'isBotSpeaking'>) => {
-  const streamsRef = useRef<THREE.Points>(null);
-  const streamCount = 500;
-
-  const [positions, velocities, lifetimes] = useMemo(() => {
-    const positions = new Float32Array(streamCount * 3);
-    const velocities = new Float32Array(streamCount * 3);
-    const lifetimes = new Float32Array(streamCount);
-
-    for (let i = 0; i < streamCount; i++) {
-      // Random position on sphere surface
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
-      const radius = 1.3 + Math.random() * 0.4;
-
-      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-      positions[i * 3 + 2] = radius * Math.cos(phi);
-
-      // Tangent velocity for spiral motion
-      velocities[i * 3] = (Math.random() - 0.5) * 0.02;
-      velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.02;
-      velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.02;
-
-      lifetimes[i] = Math.random();
-    }
-
-    return [positions, velocities, lifetimes];
-  }, []);
-
-  useFrame((state) => {
-    if (!streamsRef.current) return;
-
-    const time = state.clock.elapsedTime;
-    const posArray = streamsRef.current.geometry.attributes.position.array as Float32Array;
-    const speedMultiplier = isBotSpeaking ? 3 : isUserSpeaking ? 2 : 1;
-
-    for (let i = 0; i < streamCount; i++) {
-      lifetimes[i] += 0.01 * speedMultiplier;
-      
-      if (lifetimes[i] > 1) {
-        lifetimes[i] = 0;
-        // Reset to new position on sphere
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
-        const radius = 1.3;
-
-        posArray[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
-        posArray[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-        posArray[i * 3 + 2] = radius * Math.cos(phi);
-      } else {
-        // Spiral outward motion
-        const x = posArray[i * 3];
-        const y = posArray[i * 3 + 1];
-        const z = posArray[i * 3 + 2];
-        
-        const dist = Math.sqrt(x * x + y * y + z * z);
-        const expansion = 0.003 * speedMultiplier * (isBotSpeaking ? 1.5 : 1);
-        
-        // Expand outward with spiral
-        posArray[i * 3] = x * (1 + expansion) + Math.sin(time * 2 + i) * 0.005;
-        posArray[i * 3 + 1] = y * (1 + expansion) + Math.cos(time * 3 + i) * 0.005;
-        posArray[i * 3 + 2] = z * (1 + expansion);
-      }
-    }
-
-    streamsRef.current.geometry.attributes.position.needsUpdate = true;
-    streamsRef.current.rotation.y = time * 0.1;
-  });
-
-  return (
-    <points ref={streamsRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" count={streamCount} array={positions} itemSize={3} />
-      </bufferGeometry>
-      <pointsMaterial
-        size={0.02}
-        color="#00ffff"
-        transparent
-        opacity={0.6}
-        blending={THREE.AdditiveBlending}
-        depthWrite={false}
-      />
-    </points>
-  );
-};
-
-// Animated eyes with JARVIS-style glowing effect
+// Animated eyes with blinking and emotions
 const Eyes = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: SphereProps) => {
   const leftEyeRef = useRef<THREE.Group>(null);
   const rightEyeRef = useRef<THREE.Group>(null);
-  const leftGlowRef = useRef<THREE.Mesh>(null);
-  const rightGlowRef = useRef<THREE.Mesh>(null);
+  const leftEyeMeshRef = useRef<THREE.Mesh>(null);
+  const rightEyeMeshRef = useRef<THREE.Mesh>(null);
   const currentScale = useRef(1);
   const blinkProgress = useRef(0);
   const lastBlinkTime = useRef(0);
@@ -418,6 +173,7 @@ const Eyes = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: Spher
 
   useFrame((state) => {
     if (!leftEyeRef.current || !rightEyeRef.current) return;
+    if (!leftEyeMeshRef.current || !rightEyeMeshRef.current) return;
 
     const time = state.clock.elapsedTime;
 
@@ -432,15 +188,16 @@ const Eyes = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: Spher
       emotionState.current = emotions[Math.floor(Math.random() * emotions.length)];
     }
 
-    // Blinking logic
+    // Blinking logic - blink every 3-5 seconds (less when attentive)
     const blinkInterval = emotionState.current === "attentive" ? 5 : 3;
     if (!isBlinking.current && time - lastBlinkTime.current > blinkInterval + Math.random() * 2) {
       isBlinking.current = true;
       lastBlinkTime.current = time;
     }
 
+    // Blink animation
     if (isBlinking.current) {
-      blinkProgress.current += 0.2;
+      blinkProgress.current += 0.18;
       if (blinkProgress.current >= Math.PI) {
         blinkProgress.current = 0;
         isBlinking.current = false;
@@ -451,116 +208,169 @@ const Eyes = ({ mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: Spher
 
     // Eye shape based on emotion
     let eyeScaleY = blinkScale;
+    let eyeOffsetY = 0;
+    let eyeRotation = 0;
 
     switch (emotionState.current) {
       case "happy":
         eyeScaleY *= 0.7;
+        eyeOffsetY = 0.05;
         break;
       case "curious":
         eyeScaleY *= 1.1;
+        eyeRotation = Math.sin(time * 2) * 0.1;
         break;
       case "sleepy":
         eyeScaleY *= 0.5;
+        eyeOffsetY = -0.03;
         break;
       case "attentive":
-        eyeScaleY *= 1.15;
+        eyeScaleY *= 1.15; // Wide open, alert
+        eyeRotation = Math.sin(time * 4) * 0.02; // Slight movement
         break;
       default:
         eyeScaleY *= 1 + Math.sin(time * 1.5) * 0.05;
     }
 
-    // Apply transformations
-    leftEyeRef.current.scale.y = eyeScaleY;
-    rightEyeRef.current.scale.y = eyeScaleY;
+    // Apply eye transformations
+    leftEyeMeshRef.current.scale.y = eyeScaleY;
+    rightEyeMeshRef.current.scale.y = eyeScaleY;
+    leftEyeMeshRef.current.position.y = 0.1 + eyeOffsetY;
+    rightEyeMeshRef.current.position.y = 0.1 + eyeOffsetY;
 
-    // Eyes follow mouse
-    const eyeRotationX = mousePosition.y * 0.2;
-    const eyeRotationY = mousePosition.x * 0.35;
+    // Eyes follow mouse with slight delay
+    const eyeRotationX = mousePosition.y * 0.25;
+    const eyeRotationY = mousePosition.x * 0.4;
 
-    leftEyeRef.current.rotation.x = eyeRotationX;
-    leftEyeRef.current.rotation.y = eyeRotationY;
-    rightEyeRef.current.rotation.x = eyeRotationX;
-    rightEyeRef.current.rotation.y = eyeRotationY;
+    // When user speaks, eyes are more focused (less movement)
+    const eyeMovementDamping = isUserSpeaking ? 0.5 : 1;
 
-    // Glow intensity
-    const glowIntensity = isBotSpeaking ? 0.8 : isUserSpeaking ? 0.6 : 0.4;
-    const pulse = Math.sin(time * 4) * 0.1;
-    
-    if (leftGlowRef.current && rightGlowRef.current) {
-      (leftGlowRef.current.material as THREE.MeshBasicMaterial).opacity = glowIntensity + pulse;
-      (rightGlowRef.current.material as THREE.MeshBasicMaterial).opacity = glowIntensity + pulse;
+    leftEyeRef.current.rotation.x = eyeRotationX * eyeMovementDamping + eyeRotation;
+    leftEyeRef.current.rotation.y = eyeRotationY * eyeMovementDamping + 0.002;
+    rightEyeRef.current.rotation.x = eyeRotationX * eyeMovementDamping - eyeRotation;
+    rightEyeRef.current.rotation.y = eyeRotationY * eyeMovementDamping + 0.002;
+
+    // Bot speaking - subtle eye pulse
+    if (isBotSpeaking) {
+      const speakPulse = Math.sin(time * 6) * 0.03;
+      leftEyeMeshRef.current.scale.x = 1 + speakPulse;
+      rightEyeMeshRef.current.scale.x = 1 + speakPulse;
+    } else {
+      leftEyeMeshRef.current.scale.x = 1;
+      rightEyeMeshRef.current.scale.x = 1;
     }
 
-    // Scale on press
+    // Scale on press - "surprised" reaction
     const targetScale = isPressed ? 1.15 : 1;
     currentScale.current += (targetScale - currentScale.current) * 0.15;
-    leftEyeRef.current.scale.x = currentScale.current;
-    rightEyeRef.current.scale.x = currentScale.current;
+    leftEyeRef.current.scale.setScalar(currentScale.current);
+    rightEyeRef.current.scale.setScalar(currentScale.current);
+
+    if (isPressed) {
+      leftEyeMeshRef.current.scale.y = 1.2;
+      rightEyeMeshRef.current.scale.y = 1.2;
+    }
   });
+
+  // Create rounded rectangle shape for eyes
+  const eyeShape = useMemo(() => {
+    const shape = new THREE.Shape();
+    const width = 0.12;
+    const height = 0.35;
+    const radius = 0.06;
+
+    shape.moveTo(-width / 2 + radius, -height / 2);
+    shape.lineTo(width / 2 - radius, -height / 2);
+    shape.quadraticCurveTo(width / 2, -height / 2, width / 2, -height / 2 + radius);
+    shape.lineTo(width / 2, height / 2 - radius);
+    shape.quadraticCurveTo(width / 2, height / 2, width / 2 - radius, height / 2);
+    shape.lineTo(-width / 2 + radius, height / 2);
+    shape.quadraticCurveTo(-width / 2, height / 2, -width / 2, height / 2 - radius);
+    shape.lineTo(-width / 2, -height / 2 + radius);
+    shape.quadraticCurveTo(-width / 2, -height / 2, -width / 2 + radius, -height / 2);
+
+    return shape;
+  }, []);
+
+  const extrudeSettings = useMemo(
+    () => ({
+      depth: 0.05,
+      bevelEnabled: true,
+      bevelThickness: 0.02,
+      bevelSize: 0.02,
+      bevelSegments: 8,
+    }),
+    []
+  );
 
   return (
     <>
-      {/* Left Eye */}
-      <group ref={leftEyeRef} position={[-0.35, 0.1, 0.95]}>
-        {/* Eye core */}
-        <mesh>
-          <capsuleGeometry args={[0.08, 0.2, 8, 16]} />
-          <meshBasicMaterial color="#00ffff" />
+      <group ref={leftEyeRef}>
+        <mesh ref={leftEyeMeshRef} position={[-0.35, 0.1, 1.42]}>
+          <extrudeGeometry args={[eyeShape, extrudeSettings]} />
+          <meshBasicMaterial color="#ffffff" />
         </mesh>
-        {/* Eye glow */}
-        <mesh ref={leftGlowRef} scale={1.4}>
-          <capsuleGeometry args={[0.08, 0.2, 8, 16]} />
-          <meshBasicMaterial 
-            color="#00d4ff" 
-            transparent 
-            opacity={0.4}
-            blending={THREE.AdditiveBlending}
-          />
+        <mesh position={[-0.35, 0.1, 1.38]}>
+          <planeGeometry args={[0.25, 0.5]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.3} blending={THREE.AdditiveBlending} />
         </mesh>
       </group>
 
-      {/* Right Eye */}
-      <group ref={rightEyeRef} position={[0.35, 0.1, 0.95]}>
-        <mesh>
-          <capsuleGeometry args={[0.08, 0.2, 8, 16]} />
-          <meshBasicMaterial color="#00ffff" />
+      <group ref={rightEyeRef}>
+        <mesh ref={rightEyeMeshRef} position={[0.35, 0.1, 1.42]}>
+          <extrudeGeometry args={[eyeShape, extrudeSettings]} />
+          <meshBasicMaterial color="#ffffff" />
         </mesh>
-        <mesh ref={rightGlowRef} scale={1.4}>
-          <capsuleGeometry args={[0.08, 0.2, 8, 16]} />
-          <meshBasicMaterial 
-            color="#00d4ff" 
-            transparent 
-            opacity={0.4}
-            blending={THREE.AdditiveBlending}
-          />
+        <mesh position={[0.35, 0.1, 1.38]}>
+          <planeGeometry args={[0.25, 0.5]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.3} blending={THREE.AdditiveBlending} />
         </mesh>
       </group>
     </>
   );
 };
 
-// Outer particle cloud
+// Outer particle cloud with wave effect
 const ParticleCloud = ({ count, mousePosition, isPressed, isUserSpeaking, isBotSpeaking }: SphereProps & { count: number }) => {
   const meshRef = useRef<THREE.Points>(null);
   const originalPositions = useRef<Float32Array | null>(null);
   const targetRotation = useRef({ x: 0, y: 0 });
   const currentScale = useRef(1);
 
-  const [positions] = useMemo(() => {
+  const [positions, colors, sizes] = useMemo(() => {
     const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
 
     for (let i = 0; i < count; i++) {
       const theta = Math.random() * Math.PI * 2;
       const phi = Math.acos(2 * Math.random() - 1);
-      const radius = 2.3 + Math.random() * 0.8;
+      const radius = 1.7 + Math.random() * 0.6;
 
       positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = radius * Math.cos(phi);
+
+      const colorChoice = Math.random();
+      if (colorChoice < 0.4) {
+        colors[i * 3] = 0.0 + Math.random() * 0.2;
+        colors[i * 3 + 1] = 0.7 + Math.random() * 0.3;
+        colors[i * 3 + 2] = 0.7 + Math.random() * 0.3;
+      } else if (colorChoice < 0.7) {
+        colors[i * 3] = 0.2 + Math.random() * 0.2;
+        colors[i * 3 + 1] = 0.4 + Math.random() * 0.3;
+        colors[i * 3 + 2] = 0.9 + Math.random() * 0.1;
+      } else {
+        colors[i * 3] = 0.9 + Math.random() * 0.1;
+        colors[i * 3 + 1] = 0.4 + Math.random() * 0.2;
+        colors[i * 3 + 2] = 0.4 + Math.random() * 0.2;
+      }
+
+      sizes[i] = Math.random() * 0.012 + 0.006;
     }
 
     originalPositions.current = positions.slice();
-    return [positions];
+    return [positions, colors, sizes];
   }, [count]);
 
   useFrame((state) => {
@@ -568,47 +378,77 @@ const ParticleCloud = ({ count, mousePosition, isPressed, isUserSpeaking, isBotS
 
     const time = state.clock.elapsedTime;
 
-    targetRotation.current.x = mousePosition.y * 0.2;
-    targetRotation.current.y = mousePosition.x * 0.3;
+    targetRotation.current.x = mousePosition.y * 0.25;
+    targetRotation.current.y = mousePosition.x * 0.4;
 
-    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.04;
-    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.04;
+    meshRef.current.rotation.x += (targetRotation.current.x - meshRef.current.rotation.x) * 0.05;
+    meshRef.current.rotation.y += (targetRotation.current.y - meshRef.current.rotation.y) * 0.05;
     
+    // Faster rotation when user speaks
     const baseRotation = 0.002;
-    const speedBoost = isUserSpeaking ? 0.008 : isBotSpeaking ? 0.005 : 0;
-    meshRef.current.rotation.y += baseRotation + speedBoost;
+    const userSpeakingRotation = isUserSpeaking ? 0.012 : 0;
+    meshRef.current.rotation.y += baseRotation + userSpeakingRotation;
 
-    const targetScale = isPressed ? 1.1 : isBotSpeaking ? 1.05 : 1;
+    const targetScale = isPressed ? 1.1 : 1;
     currentScale.current += (targetScale - currentScale.current) * 0.1;
     meshRef.current.scale.setScalar(currentScale.current);
 
-    const posArray = meshRef.current.geometry.attributes.position.array as Float32Array;
+    const geometry = meshRef.current.geometry;
+    const positionAttribute = geometry.attributes.position;
+    const positionsArray = positionAttribute.array as Float32Array;
+
+    // Noise intensity based on state
+    const baseNoise = 0.01;
+    const speakingNoise = isBotSpeaking ? 0.04 : 0;
+    const noiseIntensity = baseNoise + speakingNoise + (isPressed ? 0.01 : 0);
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
-      const ox = originalPositions.current[i3];
-      const oy = originalPositions.current[i3 + 1];
-      const oz = originalPositions.current[i3 + 2];
+      const originalX = originalPositions.current[i3];
+      const originalY = originalPositions.current[i3 + 1];
+      const originalZ = originalPositions.current[i3 + 2];
 
-      const noise = isBotSpeaking ? 0.03 : 0.01;
-      posArray[i3] = ox + Math.sin(time * 0.5 + i * 0.05) * noise;
-      posArray[i3 + 1] = oy + Math.cos(time * 0.4 + i * 0.06) * noise;
-      posArray[i3 + 2] = oz + Math.sin(time * 0.3 + i * 0.07) * noise;
+      // Base noise
+      let noiseX = Math.sin(time * 0.3 + i * 0.03) * noiseIntensity;
+      let noiseY = Math.cos(time * 0.25 + i * 0.04) * noiseIntensity;
+      let noiseZ = Math.sin(time * 0.2 + i * 0.05) * noiseIntensity;
+
+      // Wave effect when bot speaks - particles ripple outward
+      if (isBotSpeaking) {
+        const dist = Math.sqrt(originalX * originalX + originalY * originalY + originalZ * originalZ);
+        const wavePhase = dist * 3 - time * 8;
+        const waveAmplitude = Math.sin(wavePhase) * 0.06;
+        
+        const nx = originalX / dist;
+        const ny = originalY / dist;
+        const nz = originalZ / dist;
+        
+        noiseX += nx * waveAmplitude;
+        noiseY += ny * waveAmplitude;
+        noiseZ += nz * waveAmplitude;
+      }
+
+      positionsArray[i3] = originalX + noiseX;
+      positionsArray[i3 + 1] = originalY + noiseY;
+      positionsArray[i3 + 2] = originalZ + noiseZ;
     }
 
-    meshRef.current.geometry.attributes.position.needsUpdate = true;
+    positionAttribute.needsUpdate = true;
   });
 
   return (
     <points ref={meshRef}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-color" count={count} array={colors} itemSize={3} />
+        <bufferAttribute attach="attributes-size" count={count} array={sizes} itemSize={1} />
       </bufferGeometry>
       <pointsMaterial
-        size={0.015}
-        color="#00d4ff"
+        size={0.018}
+        vertexColors
         transparent
-        opacity={0.4}
+        opacity={0.6}
+        sizeAttenuation
         blending={THREE.AdditiveBlending}
         depthWrite={false}
       />
@@ -638,9 +478,9 @@ const InteractiveParticleSphere = ({
   };
 
   const particleCounts = {
-    small: 800,
-    normal: 1200,
-    large: 1600,
+    small: 1500,
+    normal: 2500,
+    large: 3500,
   };
 
   useEffect(() => {
@@ -674,58 +514,40 @@ const InteractiveParticleSphere = ({
     };
   }, []);
 
-  const glowIntensity = isBotSpeaking ? 0.6 : isUserSpeaking ? 0.4 : 0.25;
+  // Dynamic glow based on speaking state
+  const glowIntensity = isBotSpeaking ? 1.4 : isUserSpeaking ? 1.2 : 1.15;
 
   return (
     <div ref={containerRef} className={`${sizeClasses[size]} cursor-pointer relative`}>
-      {/* JARVIS-style cyan glow */}
+      {/* Ambient glow - intensifies when speaking */}
       <div
-        className="absolute inset-0 rounded-full transition-all duration-500"
+        className="absolute inset-0 rounded-full transition-transform duration-300"
         style={{
-          background: `radial-gradient(circle, rgba(0, 212, 255, ${glowIntensity}) 0%, rgba(0, 180, 220, ${glowIntensity * 0.6}) 30%, rgba(0, 150, 200, ${glowIntensity * 0.3}) 50%, transparent 70%)`,
-          transform: `scale(${isPressed ? 1.4 : isBotSpeaking ? 1.3 : 1.2})`,
-          filter: "blur(30px)",
-        }}
-      />
-
-      {/* Outer pulse ring */}
-      <div
-        className="absolute inset-0 rounded-full border border-cyan-400/20"
-        style={{
-          transform: `scale(${isBotSpeaking ? 1.5 : 1.35})`,
-          animation: isBotSpeaking ? 'pulse 1.5s ease-in-out infinite' : 'none',
+          background: `radial-gradient(circle, rgba(0, 200, 180, ${isBotSpeaking ? 0.5 : 0.3}) 0%, rgba(50, 120, 220, ${isBotSpeaking ? 0.35 : 0.2}) 40%, rgba(255, 100, 100, ${isBotSpeaking ? 0.2 : 0.1}) 60%, transparent 75%)`,
+          transform: `scale(${isPressed ? 1.3 : glowIntensity})`,
+          filter: "blur(25px)",
         }}
       />
 
       <Canvas
-        camera={{ position: [0, 0, 5], fov: 45 }}
+        camera={{ position: [0, 0, 4.5], fov: 45 }}
         style={{ background: "transparent" }}
         gl={{ alpha: true, antialias: true }}
       >
-        <HolographicCore 
+        <ParticleCloud 
+          count={particleCounts[size]} 
           mousePosition={mousePosition} 
           isPressed={isPressed}
           isUserSpeaking={isUserSpeaking}
           isBotSpeaking={isBotSpeaking}
         />
-        <OrbitalRings 
+        <GradientSphere 
           mousePosition={mousePosition} 
           isPressed={isPressed}
-          isUserSpeaking={isUserSpeaking}
-          isBotSpeaking={isBotSpeaking}
-        />
-        <EnergyStreams 
           isUserSpeaking={isUserSpeaking}
           isBotSpeaking={isBotSpeaking}
         />
         <Eyes 
-          mousePosition={mousePosition} 
-          isPressed={isPressed}
-          isUserSpeaking={isUserSpeaking}
-          isBotSpeaking={isBotSpeaking}
-        />
-        <ParticleCloud 
-          count={particleCounts[size]} 
           mousePosition={mousePosition} 
           isPressed={isPressed}
           isUserSpeaking={isUserSpeaking}
