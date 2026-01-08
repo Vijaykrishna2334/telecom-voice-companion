@@ -273,17 +273,6 @@ const VoiceInterface = ({ sessionId }: VoiceInterfaceProps) => {
           </Button>
         </div>
 
-        {/* Current Transcript/Response overlay */}
-        {(transcript || response) && (
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 max-w-lg text-center px-4">
-            {transcript && (
-              <p className="text-white/50 text-sm mb-2">"{transcript}"</p>
-            )}
-            {response && (
-              <p className="text-white/80 text-base">{response}</p>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Chat Transcript Panel - Right Side */}
