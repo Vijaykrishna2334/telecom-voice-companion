@@ -3,6 +3,7 @@ import { Mic, MessageSquare, Zap, Shield, Globe, Headphones } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import InteractiveParticleSphere from "@/components/InteractiveParticleSphere";
+import heroVideo from "@/assets/hero-video.mp4";
 
 const features = [
   {
@@ -109,10 +110,37 @@ const LandingPage = () => {
             </Link>
           </div>
 
-          {/* Hero Particle Sphere */}
+          {/* Hero Video Showcase */}
           <div 
             className="mt-16 relative flex justify-center"
             style={{ animation: "fade-up 0.5s ease-out 0.4s forwards", opacity: 0 }}
+          >
+            <div className="relative w-full max-w-4xl">
+              {/* Glowing border effect */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-primary via-accent to-primary rounded-2xl blur-lg opacity-50 animate-pulse" />
+              
+              {/* Video container */}
+              <div className="relative rounded-2xl overflow-hidden border border-border/50 bg-background/50 backdrop-blur-sm shadow-2xl">
+                <video
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-auto rounded-2xl"
+                >
+                  <source src={heroVideo} type="video/mp4" />
+                </video>
+                
+                {/* Overlay gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-background/20 via-transparent to-transparent pointer-events-none" />
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Particle Sphere - below video */}
+          <div 
+            className="mt-16 relative flex justify-center"
+            style={{ animation: "fade-up 0.5s ease-out 0.5s forwards", opacity: 0 }}
           >
             <Suspense fallback={
               <div className="w-64 h-64 md:w-72 md:h-72 rounded-full flex items-center justify-center">
