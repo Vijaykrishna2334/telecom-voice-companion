@@ -52,28 +52,12 @@ const LandingPage = () => {
 
       {/* Main Content */}
       <main className="relative z-10 flex flex-col items-center justify-center min-h-[calc(100vh-88px)] px-6">
-        {/* Interactive Sphere - Hero Element */}
-        <div 
-          className="relative"
-          style={{ animation: "fade-up 0.8s ease-out forwards" }}
-        >
-          <Suspense fallback={
-            <div className="w-72 h-72 md:w-96 md:h-96 rounded-full flex items-center justify-center">
-              <div className="w-40 h-40 rounded-full bg-primary/30 animate-pulse" />
-            </div>
-          }>
-            <InteractiveParticleSphere size="large" />
-          </Suspense>
-          
-          {/* Glow ring around sphere */}
-          <div className="absolute inset-0 -z-10 scale-110">
-            <div className="w-full h-full rounded-full bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 blur-3xl animate-pulse" />
-          </div>
-        </div>
+        {/* Empty space for video focus */}
+        <div className="flex-1" />
 
         {/* CTA Buttons */}
         <div 
-          className="mt-12 flex flex-col sm:flex-row items-center gap-4"
+          className="flex flex-col sm:flex-row items-center gap-4"
           style={{ animation: "fade-up 0.8s ease-out 0.3s forwards", opacity: 0 }}
         >
           <Link to="/auth?mode=signup">
@@ -116,6 +100,25 @@ const LandingPage = () => {
           <div className="flex flex-col items-center">
             <span className="text-3xl md:text-4xl font-bold text-white">∞</span>
             <span className="text-xs text-white/50 uppercase tracking-widest mt-1">Scalable</span>
+          </div>
+        </div>
+
+        {/* Interactive Sphere - Bottom Position */}
+        <div 
+          className="mt-auto mb-24 relative"
+          style={{ animation: "fade-up 0.8s ease-out 0.7s forwards", opacity: 0 }}
+        >
+          <Suspense fallback={
+            <div className="w-48 h-48 md:w-64 md:h-64 rounded-full flex items-center justify-center">
+              <div className="w-24 h-24 rounded-full bg-primary/30 animate-pulse" />
+            </div>
+          }>
+            <InteractiveParticleSphere size="normal" />
+          </Suspense>
+          
+          {/* Glow ring around sphere */}
+          <div className="absolute inset-0 -z-10 scale-110">
+            <div className="w-full h-full rounded-full bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 blur-3xl animate-pulse" />
           </div>
         </div>
       </main>
